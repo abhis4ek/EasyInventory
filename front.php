@@ -21,17 +21,20 @@ $sql_outstock = "SELECT COUNT(DISTINCT id) AS total FROM products WHERE stock = 
 $outstock_result = $conn->query($sql_outstock);
 $out_of_stock = $outstock_result->fetch_assoc()['total'];
 
-// total purchases
-$sql = "SELECT COUNT(*) AS total FROM purchases";
-$r = $conn->query($sql)->fetch_assoc(); $total_purchases = $r['total'];
+// Total purchases
+$sql = "SELECT COUNT(*) AS total, COALESCE(SUM(total_amount), 0) AS total_amount FROM purchases";
+$r = $conn->query($sql)->fetch_assoc(); 
+$total_purchases = $r['total'];
+$total_purchases_amount = $r['total_amount'];
 
-// total sales
-$sql = "SELECT COUNT(*) AS total FROM sales";
-$r = $conn->query($sql)->fetch_assoc(); $total_sales = $r['total'];
+// Total sales
+$sql = "SELECT COUNT(*) AS total, COALESCE(SUM(total_amount), 0) AS total_amount FROM sales";
+$r = $conn->query($sql)->fetch_assoc(); 
+$total_sales = $r['total'];
+$total_sales_amount = $r['total_amount'];
 
-               
-
-
+// Calculate Profit/Loss
+$profit_loss = $total_sales_amount - $total_purchases_amount;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -59,7 +62,6 @@ $r = $conn->query($sql)->fetch_assoc(); $total_sales = $r['total'];
             min-height: 100vh;
         }
         
-        /* Sidebar Styles */
         .sidebar {
             width: 250px;
             background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
@@ -80,7 +82,7 @@ $r = $conn->query($sql)->fetch_assoc(); $total_sales = $r['total'];
         }
         
         .logo span {
-            color: #3498db;
+            color: #fff;
         }
         
         .menu {
@@ -111,7 +113,6 @@ $r = $conn->query($sql)->fetch_assoc(); $total_sales = $r['total'];
             font-size: 1.2rem;
         }
         
-        /* Main Content Styles */
         .main-content {
             flex: 1;
             padding: 20px;
@@ -145,7 +146,6 @@ $r = $conn->query($sql)->fetch_assoc(); $total_sales = $r['total'];
             object-fit: cover;
         }
         
-        /* Dashboard Cards */
         .dashboard-cards {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -160,6 +160,12 @@ $r = $conn->query($sql)->fetch_assoc(); $total_sales = $r['total'];
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
             display: flex;
             align-items: center;
+            transition: transform 0.3s;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
         }
         
         .card-icon {
@@ -183,12 +189,23 @@ $r = $conn->query($sql)->fetch_assoc(); $total_sales = $r['total'];
             font-size: 0.9rem;
         }
         
+        .card-info small {
+            display: block;
+            color: #95a5a6;
+            font-size: 0.75rem;
+            margin-top: 2px;
+        }
+        
         .bg-primary { background-color: #e3f2fd; color: #1976d2; }
         .bg-success { background-color: #e8f5e9; color: #388e3c; }
         .bg-warning { background-color: #fff8e1; color: #f57c00; }
         .bg-danger { background-color: #ffebee; color: #d32f2f; }
+        .bg-purple { background-color: #f3e5f5; color: #7b1fa2; }
+        .bg-teal { background-color: #e0f2f1; color: #00796b; }
         
-        /* Content Sections */
+        .profit-text { color: #388e3c; }
+        .loss-text { color: #d32f2f; }
+        
         .content-section {
             background: white;
             border-radius: 10px;
@@ -227,7 +244,6 @@ $r = $conn->query($sql)->fetch_assoc(); $total_sales = $r['total'];
             background-color: #2980b9;
         }
         
-        /* Table Styles */
         .table-responsive {
             overflow-x: auto;
         }
@@ -281,12 +297,16 @@ $r = $conn->query($sql)->fetch_assoc(); $total_sales = $r['total'];
             cursor: pointer;
             margin-right: 10px;
             font-size: 1.1rem;
+            transition: transform 0.2s;
+        }
+        
+        .action-btn:hover {
+            transform: scale(1.2);
         }
         
         .edit-btn { color: #3498db; }
         .delete-btn { color: #e74c3c; }
         
-        /* Form Styles */
         .form-group {
             margin-bottom: 20px;
         }
@@ -311,7 +331,6 @@ $r = $conn->query($sql)->fetch_assoc(); $total_sales = $r['total'];
             border-color: #3498db;
         }
         
-        /* Modal Styles */
         .modal {
             display: none;
             position: fixed;
@@ -332,6 +351,8 @@ $r = $conn->query($sql)->fetch_assoc(); $total_sales = $r['total'];
             max-width: 90%;
             padding: 25px;
             box-shadow: 0 5px 30px rgba(0, 0, 0, 0.2);
+            max-height: 90vh;
+            overflow-y: auto;
         }
         
         .modal-header {
@@ -356,12 +377,15 @@ $r = $conn->query($sql)->fetch_assoc(); $total_sales = $r['total'];
             color: #7f8c8d;
         }
         
+        .close-btn:hover {
+            color: #e74c3c;
+        }
+        
         .modal-footer {
             margin-top: 20px;
             text-align: right;
         }
         
-        /* Responsive Styles */
         @media (max-width: 992px) {
             .container {
                 flex-direction: column;
@@ -395,23 +419,21 @@ $r = $conn->query($sql)->fetch_assoc(); $total_sales = $r['total'];
 </head>
 <body>
     <div class="container">
-        <!-- Sidebar -->
         <div class="sidebar">
             <div class="logo">
                 <h1>Easy<span>Inventory</span></h1>
             </div>
             <ul class="menu">
                 <li class="menu-item">
-                    <a href="#" class="menu-link">
+                    <a href="front.php" class="menu-link active">
                         <i class="fas fa-home"></i> Dashboard
                     </a>
                 </li>
-                 <li class="menu-item">
+                <li class="menu-item">
                     <a href="#" class="menu-link">
                         <i class="fas fa-box"></i> Products
                     </a>
                 </li>
-
                 <li class="menu-item">
                     <a href="categories.php" class="menu-link">
                         <i class="fas fa-boxes"></i> Categories
@@ -419,43 +441,37 @@ $r = $conn->query($sql)->fetch_assoc(); $total_sales = $r['total'];
                 </li>
                 <li class="menu-item">
                     <a href="suppliers.php" class="menu-link">
-                        <i class="fas fa-users"></i> Suppliers
+                        <i class="fas fa-truck"></i> Suppliers
                     </a>
                 </li>
-                <!-- inside .menu -->
-<li class="menu-item">
-  <a href="customers.php" class="menu-link">
-    <i class="fas fa-users"></i> Customers
-  </a>
-</li>
-
                 <li class="menu-item">
-                     <a href="purchases.php" class="menu-link">
+                    <a href="customers.php" class="menu-link">
+                        <i class="fas fa-users"></i> Customers
+                    </a>
+                </li>
+                <li class="menu-item">
+                    <a href="purchases.php" class="menu-link">
                         <i class="fas fa-truck-loading"></i> Purchases
-                     </a>
+                    </a>
                 </li>
-
                 <li class="menu-item">
-                      <a href="sales.php" class="menu-link">
-                           <i class="fas fa-shopping-bag"></i> Sales
-                      </a>
+                    <a href="sales.php" class="menu-link">
+                        <i class="fas fa-shopping-bag"></i> Sales
+                    </a>
                 </li>
-
-            
                 <li class="menu-item">
-                    <a href="reports.html" class="menu-link">
+                    <a href="reports.php" class="menu-link">
                         <i class="fas fa-chart-bar"></i> Reports
                     </a>
                 </li>
                 <li class="menu-item">
-                   <a href="logout.php" class="menu-link" onclick="return confirm('Are you sure you want to logout?');">
+                    <a href="logout.php" class="menu-link" onclick="return confirm('Are you sure you want to logout?');">
                         <i class="fas fa-sign-out-alt"></i> Logout
                     </a>
                 </li>
             </ul>
         </div>
 
-        <!-- Main Content -->
         <div class="main-content">
             <div class="header">
                 <h2 class="page-title">Dashboard</h2>
@@ -465,52 +481,112 @@ $r = $conn->query($sql)->fetch_assoc(); $total_sales = $r['total'];
                 </div>
             </div>
 
-            <!-- Dashboard Cards -->
             <div class="dashboard-cards">
                 <div class="card">
-    <div class="card-icon bg-primary">
-        <i class="fas fa-box"></i>
-    </div>
-    <div class="card-info">
-        <h3><?php echo $total_products; ?></h3>
-        <p>Total Products</p>
-    </div>
-</div>
+                    <div class="card-icon bg-primary">
+                        <i class="fas fa-box"></i>
+                    </div>
+                    <div class="card-info">
+                        <h3><?php echo $total_products; ?></h3>
+                        <p>Total Products</p>
+                    </div>
+                </div>
 
-<div class="card">
-    <div class="card-icon bg-success">
-        <i class="fas fa-check-circle"></i>
-    </div>
-    <div class="card-info">
-        <h3><?php echo $in_stock; ?></h3>
-        <p>In Stock</p>
-    </div>
-</div>
+                <div class="card">
+                    <div class="card-icon bg-success">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="card-info">
+                        <h3><?php echo $in_stock; ?></h3>
+                        <p>In Stock</p>
+                    </div>
+                </div>
 
-<div class="card">
-    <div class="card-icon bg-warning">
-        <i class="fas fa-exclamation-triangle"></i>
-    </div>
-    <div class="card-info">
-        <h3><?php echo $low_stock; ?></h3>
-        <p>Low Stock</p>
-    </div>
-</div>
+                <div class="card">
+                    <div class="card-icon bg-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="card-info">
+                        <h3><?php echo $low_stock; ?></h3>
+                        <p>Low Stock</p>
+                    </div>
+                </div>
 
-<div class="card">
-    <div class="card-icon bg-danger">
-        <i class="fas fa-times-circle"></i>
-    </div>
-    <div class="card-info">
-        <h3><?php echo $out_of_stock; ?></h3>
-        <p>Out of Stock</p>
-    </div>
-</div>
+                <div class="card">
+                    <div class="card-icon bg-danger">
+                        <i class="fas fa-times-circle"></i>
+                    </div>
+                    <div class="card-info">
+                        <h3><?php echo $out_of_stock; ?></h3>
+                        <p>Out of Stock</p>
+                    </div>
+                </div>
 
-                
+                <div class="card">
+                    <div class="card-icon bg-success">
+                        <i class="fas fa-dollar-sign"></i>
+                    </div>
+                    <div class="card-info">
+                        <h3>₹<?php echo number_format($total_sales_amount, 2); ?></h3>
+                        <p>Total Sales</p>
+                        <small><?php echo $total_sales; ?> transactions</small>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon bg-purple">
+                        <i class="fas fa-shopping-cart"></i>
+                    </div>
+                    <div class="card-info">
+                        <h3>₹<?php echo number_format($total_purchases_amount, 2); ?></h3>
+                        <p>Total Purchases</p>
+                        <small><?php echo $total_purchases; ?> transactions</small>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon <?php echo $profit_loss >= 0 ? 'bg-success' : 'bg-danger'; ?>">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="card-info">
+                        <h3 class="<?php echo $profit_loss >= 0 ? 'profit-text' : 'loss-text'; ?>">
+                            ₹<?php echo number_format(abs($profit_loss), 2); ?>
+                        </h3>
+                        <p><?php echo $profit_loss >= 0 ? 'Profit' : 'Loss'; ?></p>
+                        <small>
+                            <?php 
+                            if($total_purchases_amount > 0) {
+                                $margin = ($profit_loss / $total_purchases_amount) * 100;
+                                echo number_format($margin, 2) . '% margin';
+                            } else {
+                                echo 'N/A';
+                            }
+                            ?>
+                        </small>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon bg-teal">
+                        <i class="fas fa-chart-pie"></i>
+                    </div>
+                    <div class="card-info">
+                        <h3>
+                            <?php 
+                            if($total_sales_amount > 0) {
+                                $net_margin = ($profit_loss / $total_sales_amount) * 100;
+                                echo number_format($net_margin, 2) . '%';
+                            } else {
+                                echo '0%';
+                            }
+                            ?>
+                        </h3>
+                        <p>Net Profit Margin</p>
+                        <small>Revenue efficiency</small>
+                    </div>
+                </div>
             </div>
 
-            <!-- Products Section -->
             <div class="content-section">
                 <div class="section-header">
                     <h3 class="section-title">Products</h3>
@@ -528,358 +604,335 @@ $r = $conn->query($sql)->fetch_assoc(); $total_sales = $r['total'];
                                 <th>Actions</th>
                             </tr>
                         </thead>
-                           <?php
-                           // Fetch products along with category name
-                           $stmt = $conn->prepare("
-    SELECT p.id, p.name, p.price, p.stock, p.description, p.category_id, c.name AS category_name
-    FROM products p
-    JOIN categories c ON p.category_id = c.id
-    ORDER BY 
-        CASE 
-            WHEN p.stock > 20 THEN 1
-            WHEN p.stock > 0 THEN 2
-            ELSE 3
-        END, p.name
-");
-$stmt->execute();
-$result = $stmt->get_result();
+                        <tbody>
+                        <?php
+                        $stmt = $conn->prepare("
+                            SELECT p.id, p.name, p.price, p.stock, p.description, p.category_id, c.name AS category_name
+                            FROM products p
+                            JOIN categories c ON p.category_id = c.id
+                            ORDER BY 
+                                CASE 
+                                    WHEN p.stock > 20 THEN 1
+                                    WHEN p.stock > 0 THEN 2
+                                    ELSE 3
+                                END, p.name
+                        ");
+                        $stmt->execute();
+                        $result = $stmt->get_result();
 
-if ($result->num_rows > 0) {
-    while ($product = $result->fetch_assoc()) { ?>
-        <tbody>
-        <tr>
-            <td><?php echo $product['name']; ?></td>
-            <td><?php echo $product['category_name']; ?></td>
-            <td><?php echo $product['price']; ?></td>
-            <td><?php echo $product['stock']; ?></td>
-            <td>
-                <span class="status <?php
-                    if($product['stock'] > 20) echo 'status-instock';
-                    elseif($product['stock'] > 0) echo 'status-lowstock';
-                    else echo 'status-outstock';
-                ?>">
-                <?php
-                    if($product['stock'] > 20) echo 'In Stock';
-                    elseif($product['stock'] > 0) echo 'Low Stock';
-                    else echo 'Out of Stock';
-                ?>
-                </span>
-            </td>
-            <td>
-                <button class="action-btn edit-btn" 
-                    onclick='openEditModal(<?php echo json_encode($product); ?>)'>
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="action-btn delete-btn" onclick="deleteProduct(<?php echo $product['id']; ?>)">
-                    <i class="fas fa-trash"></i>
-                </button>
-
-
-            </td>
-         </tr>
-         </tbody>
-<?php }
-} else {
-    echo "<tbody><tr><td colspan='6' style='text-align:center;'>No products found</td></tr></tbody>";
-}
-
-?>
+                        if ($result->num_rows > 0) {
+                            while ($product = $result->fetch_assoc()) { ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars($product['name']); ?></td>
+                                <td><?php echo htmlspecialchars($product['category_name']); ?></td>
+                                <td>₹<?php echo number_format($product['price'], 2); ?></td>
+                                <td><?php echo $product['stock']; ?></td>
+                                <td>
+                                    <span class="status <?php
+                                        if($product['stock'] > 20) echo 'status-instock';
+                                        elseif($product['stock'] > 0) echo 'status-lowstock';
+                                        else echo 'status-outstock';
+                                    ?>">
+                                    <?php
+                                        if($product['stock'] > 20) echo 'In Stock';
+                                        elseif($product['stock'] > 0) echo 'Low Stock';
+                                        else echo 'Out of Stock';
+                                    ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="action-btn edit-btn" 
+                                        onclick='openEditModal(<?php echo json_encode($product); ?>)'>
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="action-btn delete-btn" onclick="deleteProduct(<?php echo $product['id']; ?>)">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <?php }
+                        } else {
+                            echo "<tr><td colspan='6' style='text-align:center;'>No products found</td></tr>";
+                        }
+                        ?>
+                        </tbody>
                     </table>
                 </div>
             </div>
-
-           
-    <!-- Add Product Modal -->
-<div class="modal" id="addProductModal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3 class="modal-title">Add New Product</h3>
-            <button class="close-btn" id="closeModalBtn">&times;</button>
-        </div>
-
-        <div class="modal-body">
-            <div class="form-group">
-                <label for="productName">Product Name</label>
-                <input type="text" class="form-control" id="productName" placeholder="Enter product name" required>
-            </div>
-
-            <div class="form-group">
-                <label for="categorySelect">Category</label>
-                <select id="categorySelect" name="category_id" required>
-                    <option value="">Loading...</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="productPrice">Price (₹)</label>
-                <input type="number" class="form-control" id="productPrice" placeholder="Enter price" step="0.01" required>
-            </div>
-
-            <div class="form-group">
-                <label for="productStock">Stock Quantity</label>
-                <input type="number" class="form-control" id="productStock" placeholder="Enter stock quantity" required>
-            </div>
-
-            <div class="form-group">
-                <label for="productDescription">Description</label>
-                <textarea class="form-control" id="productDescription" rows="3" placeholder="Enter product description"></textarea>
-            </div>
-        </div>
-
-        <div class="modal-footer">
-            <button type="button" class="btn" id="cancelBtn" style="margin-right: 10px;">Cancel</button>
-            <button type="button" class="btn btn-primary" id="saveProductBtn">Save Product</button>
         </div>
     </div>
-</div>
 
-<!-- Edit Product Modal -->
-<div class="modal" id="editProductModal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3 class="modal-title">Edit Product</h3>
-            <button class="close-btn" id="closeEditModalBtn">&times;</button>
-        </div>
-        <div class="modal-body">
-            <input type="hidden" id="editProductId"> <!-- product id -->
-            <div class="form-group">
-                <label for="editProductName">Product Name</label>
-                <input type="text" class="form-control" id="editProductName">
+    <div class="modal" id="addProductModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Add New Product</h3>
+                <button class="close-btn" id="closeModalBtn">&times;</button>
             </div>
-            <div class="form-group">
-                <label for="editCategorySelect">Category</label>
-                <select id="editCategorySelect"></select>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="productName">Product Name</label>
+                    <input type="text" class="form-control" id="productName" placeholder="Enter product name" required>
+                </div>
+                <div class="form-group">
+                    <label for="categorySelect">Category</label>
+                    <select id="categorySelect" name="category_id" class="form-control" required>
+                        <option value="">Loading...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="productPrice">Price (₹)</label>
+                    <input type="number" class="form-control" id="productPrice" placeholder="Enter price" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label for="productStock">Stock Quantity</label>
+                    <input type="number" class="form-control" id="productStock" placeholder="Enter stock quantity" required>
+                </div>
+                <div class="form-group">
+                    <label for="productDescription">Description</label>
+                    <textarea class="form-control" id="productDescription" rows="3" placeholder="Enter product description"></textarea>
+                </div>
             </div>
-            <div class="form-group">
-                <label for="editProductPrice">Price (₹)</label>
-                <input type="number" class="form-control" id="editProductPrice" step="0.01">
+            <div class="modal-footer">
+                <button type="button" class="btn" id="cancelBtn" style="margin-right: 10px; background: #95a5a6; color: white;">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveProductBtn">Save Product</button>
             </div>
-            <div class="form-group">
-                <label for="editProductStock">Stock Quantity</label>
-                <input type="number" class="form-control" id="editProductStock">
-            </div>
-            <div class="form-group">
-                <label for="editProductDescription">Description</label>
-                <textarea class="form-control" id="editProductDescription" rows="3"></textarea>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn" id="cancelEditBtn" style="margin-right: 10px;">Cancel</button>
-            <button class="btn btn-primary" id="saveEditProductBtn">Save Changes</button>
         </div>
     </div>
-</div>
 
+    <div class="modal" id="editProductModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Edit Product</h3>
+                <button class="close-btn" id="closeEditModalBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editProductId">
+                <div class="form-group">
+                    <label for="editProductName">Product Name</label>
+                    <input type="text" class="form-control" id="editProductName">
+                </div>
+                <div class="form-group">
+                    <label for="editCategorySelect">Category</label>
+                    <select id="editCategorySelect" class="form-control"></select>
+                </div>
+                <div class="form-group">
+                    <label for="editProductPrice">Price (₹)</label>
+                    <input type="number" class="form-control" id="editProductPrice" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label for="editProductStock">Stock Quantity</label>
+                    <input type="number" class="form-control" id="editProductStock">
+                </div>
+                <div class="form-group">
+                    <label for="editProductDescription">Description</label>
+                    <textarea class="form-control" id="editProductDescription" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" id="cancelEditBtn" style="margin-right: 10px; background: #95a5a6; color: white;">Cancel</button>
+                <button class="btn btn-primary" id="saveEditProductBtn">Save Changes</button>
+            </div>
+        </div>
+    </div>
 
+    <script>
+    const modal = document.getElementById('addProductModal');
+    const addProductBtn = document.getElementById('addProductBtn');
+    const closeBtn = document.getElementById('closeModalBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const saveProductBtn = document.getElementById('saveProductBtn');
 
-<script>
-  // Modal elements
-  const modal = document.getElementById('addProductModal');
-  const addProductBtn = document.getElementById('addProductBtn');
-  const closeBtn = document.getElementById('closeModalBtn'); // close (×) button
-  const cancelBtn = document.getElementById('cancelBtn');
-  const saveProductBtn = document.getElementById('saveProductBtn');
-
-  // Function to fetch categories dynamically
-  function loadCategories() {
-    fetch('get_categories.php')
-      .then(response => response.json())
-      .then(categories => {
-        const categorySelect = document.getElementById('categorySelect');
-        categorySelect.innerHTML = '<option value="">Select category</option>'; // default option
-        categories.forEach(cat => {
-          const option = document.createElement('option');
-          option.value = cat.id;
-          option.textContent = cat.name;
-          categorySelect.appendChild(option);
+    function loadCategories() {
+        fetch('get_categories.php')
+        .then(response => response.json())
+        .then(categories => {
+            const categorySelect = document.getElementById('categorySelect');
+            categorySelect.innerHTML = '<option value="">Select category</option>';
+            categories.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat.id;
+                option.textContent = cat.name;
+                categorySelect.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error("Error loading categories:", error);
+            document.getElementById('categorySelect').innerHTML = '<option value="">Error loading categories</option>';
         });
-      })
-      .catch(error => {
-        console.error("Error loading categories:", error);
-        document.getElementById('categorySelect').innerHTML =
-          '<option value="">Error loading categories</option>';
-      });
-  }
-
-  // Open modal
-  addProductBtn.addEventListener('click', () => {
-    modal.style.display = 'flex';
-    loadCategories(); // load categories each time modal opens
-  });
-
-  // Close modal (× button)
-  closeBtn.addEventListener('click', () => {
-    modal.style.display = 'none';
-  });
-
-  // Close modal (Cancel button)
-  cancelBtn.addEventListener('click', () => {
-    modal.style.display = 'none';
-  });
-
-  // Close modal if clicking outside content
-  window.addEventListener('click', (e) => {
-    if (e.target === modal) modal.style.display = 'none';
-  });
-
-  // Save Product button logic
-  saveProductBtn.addEventListener('click', () => {
-    const name = document.getElementById('productName').value.trim();
-    const category_id = document.getElementById('categorySelect').value;
-    const price = document.getElementById('productPrice').value.trim();
-    const stock = document.getElementById('productStock').value.trim();
-    const description = document.getElementById('productDescription').value.trim();
-
-    // Basic validation
-    if (!name || !category_id || !price || !stock) {
-      alert('Please fill in all required fields.');
-      return;
     }
 
-    const formData = new FormData();
-    formData.append('name', name);
-    formData.append('category_id', category_id);
-    formData.append('price', price);
-    formData.append('stock', stock);
-    formData.append('description', description);
+    addProductBtn.addEventListener('click', () => {
+        modal.style.display = 'flex';
+        loadCategories();
+    });
 
-    fetch('add_product.php', {
-      method: 'POST',
-      body: formData
-    })
-    .then(response => response.text())
-    .then(result => {
-      if (result.trim() === 'success') {
-        alert('Product added successfully!');
+    closeBtn.addEventListener('click', () => {
         modal.style.display = 'none';
-        // Clear form fields
-        document.getElementById('productName').value = '';
-        document.getElementById('productPrice').value = '';
-        document.getElementById('productStock').value = '';
-        document.getElementById('productDescription').value = '';
-        // Reload the page to show updated product list
-        location.reload();
-      } else {
-        alert('Error adding product: ' + result);
-      }
-    })
-    .catch(error => {
-      alert('Fetch error: ' + error);
     });
-  });
-</script>
-<script>
-  // ================= Edit Product Modal Script =================
-  const editModal = document.getElementById('editProductModal');
-const closeEditBtn = document.getElementById('closeEditModalBtn');
-const cancelEditBtn = document.getElementById('cancelEditBtn');
-const saveEditProductBtn = document.getElementById('saveEditProductBtn');
 
-// Function to fetch categories dynamically for Edit Modal
-function loadEditCategories(selectedId = null) {
-  fetch('get_categories.php')
-    .then(response => response.json())
-    .then(categories => {
-      const categorySelect = document.getElementById('editCategorySelect');
-      categorySelect.innerHTML = '<option value="">Select category</option>';
-      categories.forEach(cat => {
-        const option = document.createElement('option');
-        option.value = cat.id;
-        option.textContent = cat.name;
-        if (cat.id == selectedId) option.selected = true;
-        categorySelect.appendChild(option);
-      });
-    })
-    .catch(error => {
-      console.error("Error loading categories:", error);
-      document.getElementById('editCategorySelect').innerHTML =
-        '<option value="">Error loading categories</option>';
+    cancelBtn.addEventListener('click', () => {
+        modal.style.display = 'none';
     });
-}
 
-// Function to open Edit Modal and fill data
-function openEditModal(product) {
-  editModal.style.display = 'flex';
-  document.getElementById('editProductId').value = product.id;
-  document.getElementById('editProductName').value = product.name;
-  document.getElementById('editProductPrice').value = product.price;
-  document.getElementById('editProductStock').value = product.stock;
-  document.getElementById('editProductDescription').value = product.description;
-  loadEditCategories(product.category_id);
-}
+    window.addEventListener('click', (e) => {
+        if (e.target === modal) modal.style.display = 'none';
+    });
 
-// Close modal
-closeEditBtn.addEventListener('click', () => { editModal.style.display = 'none'; });
-cancelEditBtn.addEventListener('click', () => { editModal.style.display = 'none'; });
-window.addEventListener('click', (e) => { if (e.target === editModal) editModal.style.display = 'none'; });
+    saveProductBtn.addEventListener('click', () => {
+        const name = document.getElementById('productName').value.trim();
+        const category_id = document.getElementById('categorySelect').value;
+        const price = document.getElementById('productPrice').value.trim();
+        const stock = document.getElementById('productStock').value.trim();
+        const description = document.getElementById('productDescription').value.trim();
 
-// Save edited product
-saveEditProductBtn.addEventListener('click', () => {
-  const id = document.getElementById('editProductId').value;
-  const name = document.getElementById('editProductName').value.trim();
-  const category_id = document.getElementById('editCategorySelect').value;
-  const price = document.getElementById('editProductPrice').value.trim();
-  const stock = document.getElementById('editProductStock').value.trim();
-  const description = document.getElementById('editProductDescription').value.trim();
-
-  if (!name || !category_id || !price || !stock) {
-    alert('Please fill in all required fields.');
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append('id', id);
-  formData.append('name', name);
-  formData.append('category_id', category_id);
-  formData.append('price', price);
-  formData.append('stock', stock);
-  formData.append('description', description);
-
-  fetch('edit_product.php', {
-    method: 'POST',
-    body: formData
-  })
-  .then(response => response.text())
-  .then(result => {
-    if (result.trim() === 'success') {
-      alert('Product updated successfully!');
-      editModal.style.display = 'none';
-      location.reload();
-    } else {
-      alert('Error updating product: ' + result);
-    }
-  })
-  .catch(error => { alert('Fetch error: ' + error); });
-});
-</script>
-
-<script>
-function deleteProduct(id) {
-    if (!confirm("Are you sure you want to delete this product?")) {
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append('id', id);
-
-    fetch('delete_product.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.text())
-    .then(result => {
-        if (result.trim() === 'success') {
-            alert('Product deleted successfully!');
-            location.reload();
-        } else {
-            alert('Error deleting product: ' + result);
+        if (!name || !category_id || !price || !stock) {
+            alert('Please fill in all required fields.');
+            return;
         }
-    })
-    .catch(error => {
-        alert('Fetch error: ' + error);
+
+        const formData = new FormData();
+        formData.append('name', name);
+        formData.append('category_id', category_id);
+        formData.append('price', price);
+        formData.append('stock', stock);
+        formData.append('description', description);
+
+        fetch('add_product.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.text())
+        .then(result => {
+            if (result.trim() === 'success') {
+                alert('Product added successfully!');
+                modal.style.display = 'none';
+                document.getElementById('productName').value = '';
+                document.getElementById('productPrice').value = '';
+                document.getElementById('productStock').value = '';
+                document.getElementById('productDescription').value = '';
+                location.reload();
+            } else {
+                alert('Error adding product: ' + result);
+            }
+        })
+        .catch(error => {
+            alert('Fetch error: ' + error);
+        });
     });
-}
-</script>
+
+    const editModal = document.getElementById('editProductModal');
+    const closeEditBtn = document.getElementById('closeEditModalBtn');
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
+    const saveEditProductBtn = document.getElementById('saveEditProductBtn');
+
+    function loadEditCategories(selectedId = null) {
+        fetch('get_categories.php')
+        .then(response => response.json())
+        .then(categories => {
+            const categorySelect = document.getElementById('editCategorySelect');
+            categorySelect.innerHTML = '<option value="">Select category</option>';
+            categories.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat.id;
+                option.textContent = cat.name;
+                if (cat.id == selectedId) option.selected = true;
+                categorySelect.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error("Error loading categories:", error);
+            document.getElementById('editCategorySelect').innerHTML = '<option value="">Error loading categories</option>';
+        });
+    }
+
+    function openEditModal(product) {
+        editModal.style.display = 'flex';
+        document.getElementById('editProductId').value = product.id;
+        document.getElementById('editProductName').value = product.name;
+        document.getElementById('editProductPrice').value = product.price;
+        document.getElementById('editProductStock').value = product.stock;
+        document.getElementById('editProductDescription').value = product.description;
+        loadEditCategories(product.category_id);
+    }
+
+    closeEditBtn.addEventListener('click', () => { 
+        editModal.style.display = 'none'; 
+    });
+
+    cancelEditBtn.addEventListener('click', () => { 
+        editModal.style.display = 'none'; 
+    });
+
+    window.addEventListener('click', (e) => { 
+        if (e.target === editModal) editModal.style.display = 'none'; 
+    });
+
+    saveEditProductBtn.addEventListener('click', () => {
+        const id = document.getElementById('editProductId').value;
+        const name = document.getElementById('editProductName').value.trim();
+        const category_id = document.getElementById('editCategorySelect').value;
+        const price = document.getElementById('editProductPrice').value.trim();
+        const stock = document.getElementById('editProductStock').value.trim();
+        const description = document.getElementById('editProductDescription').value.trim();
+
+        if (!name || !category_id || !price || !stock) {
+            alert('Please fill in all required fields.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('id', id);
+        formData.append('name', name);
+        formData.append('category_id', category_id);
+        formData.append('price', price);
+        formData.append('stock', stock);
+        formData.append('description', description);
+
+        fetch('edit_product.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.text())
+        .then(result => {
+            if (result.trim() === 'success') {
+                alert('Product updated successfully!');
+                editModal.style.display = 'none';
+                location.reload();
+            } else {
+                alert('Error updating product: ' + result);
+            }
+        })
+        .catch(error => { 
+            alert('Fetch error: ' + error); 
+        });
+    });
+
+    function deleteProduct(id) {
+        if (!confirm("Are you sure you want to delete this product?")) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('id', id);
+
+        fetch('delete_product.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.text())
+        .then(result => {
+            if (result.trim() === 'success') {
+                alert('Product deleted successfully!');
+                location.reload();
+            } else {
+                alert('Error deleting product: ' + result);
+            }
+        })
+        .catch(error => {
+            alert('Fetch error: ' + error);
+        });
+    }
+    </script>
 
 </body>
 </html>

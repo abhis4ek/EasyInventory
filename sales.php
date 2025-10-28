@@ -61,7 +61,10 @@ require 'db.php';
           <div class="modal-body">
             <div class="mb-3">
               <label for="customerSelect" class="form-label">Select Customer</label>
-              <select id="customerSelect" name="customer_id" class="form-select" required></select>
+              <div class="input-group">
+                <select id="customerSelect" name="customer_id" class="form-select" required></select>
+                <button type="button" class="btn btn-outline-secondary" id="addCustomerBtn">+ New</button>
+              </div>
             </div>
 
             <table class="table" id="saleItemsTable">
@@ -97,19 +100,56 @@ require 'db.php';
     </div>
   </div>
 
+  <!-- Add Customer Modal -->
+  <div class="modal fade" id="addCustomerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="customerForm">
+          <div class="modal-header">
+            <h5 class="modal-title">Add New Customer</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="customerName" class="form-label">Name *</label>
+              <input type="text" id="customerName" name="name" class="form-control" required>
+            </div>
+            <div class="mb-3">
+              <label for="customerEmail" class="form-label">Email</label>
+              <input type="email" id="customerEmail" name="email" class="form-control">
+            </div>
+            <div class="mb-3">
+              <label for="customerPhone" class="form-label">Phone</label>
+              <input type="text" id="customerPhone" name="phone" class="form-control">
+            </div>
+            <div class="mb-3">
+              <label for="customerAddress" class="form-label">Address</label>
+              <textarea id="customerAddress" name="address" class="form-control" rows="2"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Customer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
   let products = [];
+  let addCustomerModal, addSaleModal;
+
+  $(document).ready(function() {
+    addCustomerModal = new bootstrap.Modal(document.getElementById('addCustomerModal'));
+    addSaleModal = new bootstrap.Modal(document.getElementById('addSaleModal'));
+  });
 
   // Load customers & products when modal opens
   $('#addSaleModal').on('show.bs.modal', function() {
-    // Load customers
-    $.getJSON('get_customers.php', function(data) {
-      let html = '<option value="">-- Select Customer --</option>';
-      data.forEach(c => html += `<option value="${c.id}">${c.name}</option>`);
-      $('#customerSelect').html(html);
-    });
+    loadCustomers();
 
     // Load products (once)
     if (products.length === 0) {
@@ -117,6 +157,45 @@ require 'db.php';
         products = data;
       });
     }
+  });
+
+  function loadCustomers() {
+    $.getJSON('get_customers.php', function(data) {
+      let html = '<option value="">-- Select Customer --</option>';
+      data.forEach(c => html += `<option value="${c.id}">${c.name}</option>`);
+      $('#customerSelect').html(html);
+    });
+  }
+
+  // Open Add Customer Modal
+  $('#addCustomerBtn').click(function() {
+    addCustomerModal.show();
+  });
+
+  // Submit new customer form
+  $('#customerForm').submit(function(e) {
+    e.preventDefault();
+    $.ajax({
+      url: 'add_customer.php',
+      method: 'POST',
+      data: $(this).serialize(),
+      dataType: 'json',
+      success: function(res) {
+        if (res.status === 'success') {
+          alert('Customer added successfully!');
+          $('#customerForm')[0].reset();
+          addCustomerModal.hide();
+          loadCustomers();
+          // Auto-select the newly added customer
+          setTimeout(() => $('#customerSelect').val(res.id), 100);
+        } else {
+          alert('Error: ' + (res.msg || 'Unknown error'));
+        }
+      },
+      error: function() {
+        alert('Failed to add customer.');
+      }
+    });
   });
 
   // Add product row

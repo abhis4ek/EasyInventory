@@ -61,7 +61,10 @@ require 'db.php';
           <div class="modal-body">
             <div class="mb-3">
               <label for="supplierSelect" class="form-label">Select Supplier</label>
-              <select id="supplierSelect" name="supplier_id" class="form-select" required></select>
+              <div class="input-group">
+                <select id="supplierSelect" name="supplier_id" class="form-select" required></select>
+                <button type="button" class="btn btn-outline-secondary" id="addSupplierBtn">+ New</button>
+              </div>
             </div>
 
             <table class="table" id="purchaseItemsTable">
@@ -97,19 +100,56 @@ require 'db.php';
     </div>
   </div>
 
+  <!-- Add Supplier Modal -->
+  <div class="modal fade" id="addSupplierModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="supplierForm">
+          <div class="modal-header">
+            <h5 class="modal-title">Add New Supplier</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="supplierName" class="form-label">Name *</label>
+              <input type="text" id="supplierName" name="name" class="form-control" required>
+            </div>
+            <div class="mb-3">
+              <label for="supplierEmail" class="form-label">Email</label>
+              <input type="email" id="supplierEmail" name="email" class="form-control">
+            </div>
+            <div class="mb-3">
+              <label for="supplierPhone" class="form-label">Phone</label>
+              <input type="text" id="supplierPhone" name="phone" class="form-control">
+            </div>
+            <div class="mb-3">
+              <label for="supplierAddress" class="form-label">Address</label>
+              <textarea id="supplierAddress" name="address" class="form-control" rows="2"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Supplier</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
   let products = [];
+  let addSupplierModal, addPurchaseModal;
+
+  $(document).ready(function() {
+    addSupplierModal = new bootstrap.Modal(document.getElementById('addSupplierModal'));
+    addPurchaseModal = new bootstrap.Modal(document.getElementById('addPurchaseModal'));
+  });
 
   // Load suppliers & products when modal opens
   $('#addPurchaseModal').on('show.bs.modal', function() {
-    // Load suppliers
-    $.getJSON('get_suppliers.php', function(data) {
-      let html = '<option value="">-- Select Supplier --</option>';
-      data.forEach(s => html += `<option value="${s.id}">${s.name}</option>`);
-      $('#supplierSelect').html(html);
-    });
+    loadSuppliers();
 
     // Load products only once
     if (products.length === 0) {
@@ -117,6 +157,45 @@ require 'db.php';
         products = data;
       });
     }
+  });
+
+  function loadSuppliers() {
+    $.getJSON('get_suppliers.php', function(data) {
+      let html = '<option value="">-- Select Supplier --</option>';
+      data.forEach(s => html += `<option value="${s.id}">${s.name}</option>`);
+      $('#supplierSelect').html(html);
+    });
+  }
+
+  // Open Add Supplier Modal
+  $('#addSupplierBtn').click(function() {
+    addSupplierModal.show();
+  });
+
+  // Submit new supplier form
+  $('#supplierForm').submit(function(e) {
+    e.preventDefault();
+    $.ajax({
+      url: 'add_supplier.php',
+      method: 'POST',
+      data: $(this).serialize(),
+      dataType: 'json',
+      success: function(res) {
+        if (res.status === 'success') {
+          alert('Supplier added successfully!');
+          $('#supplierForm')[0].reset();
+          addSupplierModal.hide();
+          loadSuppliers();
+          // Auto-select the newly added supplier
+          setTimeout(() => $('#supplierSelect').val(res.id), 100);
+        } else {
+          alert('Error: ' + (res.msg || 'Unknown error'));
+        }
+      },
+      error: function() {
+        alert('Failed to add supplier.');
+      }
+    });
   });
 
   // Add product row
@@ -186,7 +265,6 @@ require 'db.php';
     });
   });
   </script>
-    
 
 </body>
 </html>
