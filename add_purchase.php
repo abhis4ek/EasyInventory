@@ -1,5 +1,11 @@
 <?php
+session_start();
+if (!isset($_SESSION['admin_id'])) {
+    header("Location: login.php");
+    exit();
+}
 require 'db.php';
+$admin_id = $_SESSION['admin_id'];
 
 // Expected POST: supplier_id, purchase_date (optional), product_id[] , quantity[] , unit_price[]
 $supplier_id = isset($_POST['supplier_id']) ? (int)$_POST['supplier_id'] : 0;
@@ -8,7 +14,20 @@ $product_ids = $_POST['product_id'] ?? [];
 $qtys = $_POST['quantity'] ?? [];
 $unit_prices = $_POST['unit_price'] ?? [];
 
-if (!$supplier_id || empty($product_ids)) { echo 'invalid'; exit; }
+if (!$supplier_id || empty($product_ids)) { 
+    echo 'invalid'; 
+    exit; 
+}
+
+// ✅ Verify supplier belongs to this user
+$verify = $conn->prepare('SELECT id FROM suppliers WHERE id = ? AND admin_id = ?');
+$verify->bind_param('ii', $supplier_id, $admin_id);
+$verify->execute();
+if ($verify->get_result()->num_rows === 0) {
+    echo 'invalid supplier';
+    exit;
+}
+$verify->close();
 
 $conn->begin_transaction();
 try {
@@ -20,27 +39,44 @@ try {
         $q = (int)$qtys[$i];
         $up = (float)$unit_prices[$i];
         if ($pid<=0 || $q<=0) throw new Exception('Invalid product/quantity');
+        
+        // ✅ Verify each product belongs to this user
+        $verifyProd = $conn->prepare('SELECT id FROM products WHERE id = ? AND admin_id = ?');
+        $verifyProd->bind_param('ii', $pid, $admin_id);
+        $verifyProd->execute();
+        if ($verifyProd->get_result()->num_rows === 0) {
+            throw new Exception('Invalid product access');
+        }
+        $verifyProd->close();
+        
         $subtotal = $q * $up;
         $total += $subtotal;
         $items[] = ['pid'=>$pid,'q'=>$q,'up'=>$up,'subtotal'=>$subtotal];
     }
-    // insert purchases meta
-    $stmt = $conn->prepare('INSERT INTO purchases (supplier_id, purchase_date, total_amount) VALUES (?, ?, ?)');
-    $stmt->bind_param('isd', $supplier_id, $purchase_date, $total);
+    
+    // ✅ Fixed: Correct parameter order and types
+    // INSERT INTO purchases (admin_id, supplier_id, purchase_date, total_amount)
+    $stmt = $conn->prepare('INSERT INTO purchases (admin_id, supplier_id, purchase_date, total_amount) VALUES (?, ?, ?, ?)');
+    $stmt->bind_param('iisd', $admin_id, $supplier_id, $purchase_date, $total);
     if (!$stmt->execute()) throw new Exception($stmt->error);
     $purchase_id = $stmt->insert_id;
     $stmt->close();
 
     // insert items and update stock (increase)
     $stmtItem = $conn->prepare('INSERT INTO purchase_items (purchase_id, product_id, quantity, unit_price, subtotal) VALUES (?, ?, ?, ?, ?)');
-    $stmtUpdate = $conn->prepare('UPDATE products SET stock = stock + ? WHERE id = ?');
+    
+    // ✅ Fixed: Update only products belonging to this user
+    $stmtUpdate = $conn->prepare('UPDATE products SET stock = stock + ? WHERE id = ? AND admin_id = ?');
 
     foreach ($items as $it){
         $stmtItem->bind_param('iiidd', $purchase_id, $it['pid'], $it['q'], $it['up'], $it['subtotal']);
         if (!$stmtItem->execute()) throw new Exception($stmtItem->error);
-        $stmtUpdate->bind_param('ii', $it['q'], $it['pid']);
+        
+        // ✅ Fixed: Added admin_id to UPDATE
+        $stmtUpdate->bind_param('iii', $it['q'], $it['pid'], $admin_id);
         if (!$stmtUpdate->execute()) throw new Exception($stmtUpdate->error);
     }
+    
     $conn->commit();
     echo 'success';
 } catch (Exception $e) {

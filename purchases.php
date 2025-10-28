@@ -1,5 +1,11 @@
 <?php
+session_start();
+if (!isset($_SESSION['admin_id'])) {
+    header("Location: login.php");
+    exit();
+}
 require 'db.php';
+$admin_id = $_SESSION['admin_id'];
 ?>
 
 <!DOCTYPE html>
@@ -31,20 +37,34 @@ require 'db.php';
     </thead>
     <tbody>
       <?php
-      $sql = "SELECT p.id, p.purchase_date, p.total_amount, s.name AS supplier_name
+      // ✅ Filter purchases by admin_id
+      $stmt = $conn->prepare("SELECT p.id, p.purchase_date, p.total_amount, s.name AS supplier_name
               FROM purchases p
               LEFT JOIN suppliers s ON p.supplier_id = s.id
-              ORDER BY p.purchase_date DESC";
-      $res = $conn->query($sql);
-      while($row = $res->fetch_assoc()):
+              WHERE p.admin_id = ?
+              ORDER BY p.purchase_date DESC");
+      $stmt->bind_param('i', $admin_id);
+      $stmt->execute();
+      $res = $stmt->get_result();
+      
+      if($res->num_rows > 0):
+        while($row = $res->fetch_assoc()):
       ?>
       <tr>
         <td><?= $row['id'] ?></td>
         <td><?= $row['purchase_date'] ?></td>
-        <td><?= htmlspecialchars($row['supplier_name']) ?></td>
-        <td><?= $row['total_amount'] ?></td>
+        <td><?= htmlspecialchars($row['supplier_name'] ?? 'N/A') ?></td>
+        <td>₹<?= number_format($row['total_amount'], 2) ?></td>
       </tr>
-      <?php endwhile; ?>
+      <?php 
+        endwhile;
+      else:
+      ?>
+      <tr><td colspan="4" style="text-align:center;">No purchases found.</td></tr>
+      <?php 
+      endif;
+      $stmt->close();
+      ?>
     </tbody>
   </table>
 

@@ -1,5 +1,11 @@
 <?php
+session_start();
+if (!isset($_SESSION['admin_id'])) {
+    header("Location: login.php");
+    exit();
+}
 require 'db.php';
+$admin_id = $_SESSION['admin_id'];
 $message = '';
 
 // Handle form submission
@@ -10,8 +16,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['name'])) {
     // Convert empty strings to NULL for optional fields
     $description = $description ?: null;
     
-    $stmt = $conn->prepare('INSERT INTO categories (name, description) VALUES (?, ?)');
-    $stmt->bind_param('ss', $name, $description);
+    // ✅ Added admin_id to INSERT
+    $stmt = $conn->prepare('INSERT INTO categories (admin_id, name, description) VALUES (?, ?, ?)');
+    $stmt->bind_param('iss', $admin_id, $name, $description);
     
     if ($stmt->execute()) {
         $stmt->close();
@@ -27,8 +34,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['name'])) {
 // Handle delete
 if (isset($_GET['delete'])) {
     $id = (int)$_GET['delete'];
-    $stmt = $conn->prepare('DELETE FROM categories WHERE id = ?');
-    $stmt->bind_param('i', $id);
+    
+    // ✅ Added admin_id filter to DELETE - only delete user's own categories
+    $stmt = $conn->prepare('DELETE FROM categories WHERE id = ? AND admin_id = ?');
+    $stmt->bind_param('ii', $id, $admin_id);
     
     if ($stmt->execute()) {
         $stmt->close();
@@ -45,7 +54,11 @@ if (isset($_GET['success'])) {
     $message = 'Category added successfully!';
 }
 
-$res = $conn->query('SELECT * FROM categories ORDER BY id');
+// ✅ Filter categories by admin_id - only show user's own categories
+$stmt = $conn->prepare('SELECT * FROM categories WHERE admin_id = ? ORDER BY id');
+$stmt->bind_param('i', $admin_id);
+$stmt->execute();
+$res = $stmt->get_result();
 ?>
 <!DOCTYPE html>
 <html>
@@ -113,4 +126,4 @@ $res = $conn->query('SELECT * FROM categories ORDER BY id');
         <?php endif; ?>
     </table>
 </body>
-</html>
+</html> 

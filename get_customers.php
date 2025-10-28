@@ -1,9 +1,25 @@
 <?php
+session_start();
+if (!isset($_SESSION['admin_id'])) {
+    echo json_encode([]);
+    exit();
+}
 require 'db.php';
 header('Content-Type: application/json');
 
-$res = $conn->query("SELECT id, name FROM customers ORDER BY name");
+$admin_id = $_SESSION['admin_id'];
+
+// ✅ Filter customers by admin_id - only return user's own customers
+$stmt = $conn->prepare("SELECT id, name FROM customers WHERE admin_id = ? ORDER BY name");
+$stmt->bind_param('i', $admin_id);
+$stmt->execute();
+$res = $stmt->get_result();
+
 $out = [];
-while ($r = $res->fetch_assoc()) $out[] = $r;
+while ($r = $res->fetch_assoc()) {
+    $out[] = $r;
+}
+
 echo json_encode($out);
+$stmt->close();
 ?>

@@ -1,5 +1,11 @@
 <?php
+session_start();
+if (!isset($_SESSION['admin_id'])) {
+    header("Location: login.php");
+    exit();
+}
 require 'db.php';
+$admin_id = $_SESSION['admin_id'];
 ?>
 
 <!DOCTYPE html>
@@ -31,20 +37,34 @@ require 'db.php';
     </thead>
     <tbody>
       <?php
-      $sql = "SELECT s.id, s.sale_date, s.total_amount, c.name AS customer_name
+      // ✅ Filter sales by admin_id
+      $stmt = $conn->prepare("SELECT s.id, s.sale_date, s.total_amount, c.name AS customer_name
               FROM sales s
               LEFT JOIN customers c ON s.customer_id = c.id
-              ORDER BY s.sale_date DESC";
-      $res = $conn->query($sql);
-      while($row = $res->fetch_assoc()):
+              WHERE s.admin_id = ?
+              ORDER BY s.sale_date DESC");
+      $stmt->bind_param('i', $admin_id);
+      $stmt->execute();
+      $res = $stmt->get_result();
+      
+      if($res->num_rows > 0):
+        while($row = $res->fetch_assoc()):
       ?>
       <tr>
         <td><?= $row['id'] ?></td>
         <td><?= $row['sale_date'] ?></td>
-        <td><?= htmlspecialchars($row['customer_name']) ?></td>
-        <td><?= $row['total_amount'] ?></td>
+        <td><?= htmlspecialchars($row['customer_name'] ?? 'Walk-in') ?></td>
+        <td>₹<?= number_format($row['total_amount'], 2) ?></td>
       </tr>
-      <?php endwhile; ?>
+      <?php 
+        endwhile;
+      else:
+      ?>
+      <tr><td colspan="4" style="text-align:center;">No sales found.</td></tr>
+      <?php 
+      endif;
+      $stmt->close();
+      ?>
     </tbody>
   </table>
 
@@ -62,7 +82,7 @@ require 'db.php';
             <div class="mb-3">
               <label for="customerSelect" class="form-label">Select Customer</label>
               <div class="input-group">
-                <select id="customerSelect" name="customer_id" class="form-select" required></select>
+                <select id="customerSelect" name="customer_id" class="form-select"></select>
                 <button type="button" class="btn btn-outline-secondary" id="addCustomerBtn">+ New</button>
               </div>
             </div>
@@ -161,7 +181,7 @@ require 'db.php';
 
   function loadCustomers() {
     $.getJSON('get_customers.php', function(data) {
-      let html = '<option value="">-- Select Customer --</option>';
+      let html = '<option value="">-- Walk-in Customer --</option>';
       data.forEach(c => html += `<option value="${c.id}">${c.name}</option>`);
       $('#customerSelect').html(html);
     });
