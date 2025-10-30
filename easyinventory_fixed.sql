@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3306
--- Generation Time: Oct 28, 2025 at 11:10 AM
+-- Generation Time: Oct 30, 2025 at 03:20 AM
 -- Server version: 9.1.0
 -- PHP Version: 8.3.14
 
@@ -57,23 +57,22 @@ CREATE TABLE IF NOT EXISTS `categories` (
   `admin_id` int NOT NULL DEFAULT '1',
   `name` varchar(255) NOT NULL,
   `description` text,
+  `gst_rate` decimal(5,2) DEFAULT '0.00',
   PRIMARY KEY (`id`),
   KEY `idx_categories_admin` (`admin_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Dumping data for table `categories`
 --
 
-INSERT INTO `categories` (`id`, `admin_id`, `name`, `description`) VALUES
-(1, 1, 'Tech', ''),
-(2, 1, 'Fashion', ''),
-(3, 1, 'Electronic', ''),
-(4, 1, 'food', 'dshufhfse'),
-(5, 1, 'Stationery', 'Office stationery'),
-(6, 1, 'Clothing', 'Apparel and accessories'),
-(10, 1, 'Medicine', NULL),
-(11, 1, 'Graphic cards', NULL);
+INSERT INTO `categories` (`id`, `admin_id`, `name`, `description`, `gst_rate`) VALUES
+(2, 1, 'Clothing', NULL, 5.00),
+(3, 1, 'Electronic', NULL, 12.00),
+(4, 1, 'Food', NULL, 0.00),
+(17, 2, 'Food', NULL, 5.00),
+(18, 2, 'Electronics', NULL, 12.00),
+(19, 2, 'Clothing', NULL, 12.00);
 
 -- --------------------------------------------------------
 
@@ -86,21 +85,28 @@ CREATE TABLE IF NOT EXISTS `customers` (
   `id` int NOT NULL AUTO_INCREMENT,
   `admin_id` int NOT NULL DEFAULT '1',
   `name` varchar(255) NOT NULL,
+  `street_address` varchar(255) DEFAULT NULL,
+  `city` varchar(100) DEFAULT NULL,
+  `pin_code` varchar(6) DEFAULT NULL,
+  `state` varchar(100) DEFAULT NULL,
   `email` varchar(100) DEFAULT NULL,
   `phone` varchar(20) DEFAULT NULL,
   `address` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_customers_admin` (`admin_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Dumping data for table `customers`
 --
 
-INSERT INTO `customers` (`id`, `admin_id`, `name`, `email`, `phone`, `address`) VALUES
-(1, 1, 'n mnnmn', 'n nm', 'nmn', 'nnm'),
-(2, 1, 'abhishek', '16abhisheksinhaa@gmail.com', '09873621656', 'hedhabfjabfabddba'),
-(6, 1, 'Sandeep', 'sandeep122@gmail.com', '58375983879', 'Manipur');
+INSERT INTO `customers` (`id`, `admin_id`, `name`, `street_address`, `city`, `pin_code`, `state`, `email`, `phone`, `address`) VALUES
+(1, 1, 'n mnnmn', NULL, NULL, NULL, NULL, 'n nm', 'nmn', 'nnm'),
+(2, 1, 'abhishek', NULL, NULL, NULL, NULL, '16abhisheksinhaa@gmail.com', '09873621656', 'hedhabfjabfabddba'),
+(6, 1, 'Sandeep', NULL, NULL, NULL, NULL, 'sandeep122@gmail.com', '58375983879', 'Manipur'),
+(7, 2, 'Bharat', 'Nongmensong', 'Shillong', '793007', 'MEGHALAYA', 'bharatgaming2419@gmail.com', '8687473287', 'Meghalaya,shillong'),
+(8, 2, 'Yooshwa', 'Laitumkhrah', 'Shillong', '793004', 'MEGHALAYA', 'yooshwa@gmail.com', '7873289463', NULL),
+(9, 2, 'Adip', 'Koila', 'Agartala', '794828', 'Tripura', NULL, '8875439739', NULL);
 
 -- --------------------------------------------------------
 
@@ -123,18 +129,21 @@ CREATE TABLE IF NOT EXISTS `products` (
   KEY `category_id` (`category_id`),
   KEY `supplier_id` (`supplier_id`),
   KEY `idx_products_admin` (`admin_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Dumping data for table `products`
 --
 
 INSERT INTO `products` (`id`, `admin_id`, `name`, `category_id`, `supplier_id`, `price`, `stock`, `description`, `created_at`) VALUES
-(1, 1, 'tv', 2, NULL, 10000.00, 40, '', '2025-10-22 02:41:23'),
-(2, 1, 'nike air max', 3, NULL, 8999.00, 2, '', '2025-10-22 05:45:52'),
-(3, 1, 'tws', 4, NULL, 2499.00, 8, '', '2025-10-22 07:25:39'),
-(4, 1, 'HP 15s', 3, NULL, 42999.00, 21, '0', '2025-10-28 02:24:52'),
-(5, 1, '5090', 3, NULL, 249000.00, 11, '0', '2025-10-28 03:17:59');
+(4, 1, 'tv', 2, NULL, 10000.00, 40, '', '2025-10-22 02:41:23'),
+(9, 1, 'nike air max', 3, NULL, 8999.00, 2, '', '2025-10-22 05:45:52'),
+(12, 1, 'tws', 4, NULL, 2499.00, 8, '', '2025-10-22 07:25:39'),
+(15, 1, 'HP 15s', 3, NULL, 42999.00, 21, '0', '2025-10-28 02:24:52'),
+(17, 1, '5090', 3, NULL, 249000.00, 11, '0', '2025-10-28 03:17:59'),
+(20, 2, 'Buldak ramen', 17, NULL, 140.00, 200, '', '2025-10-29 15:26:22'),
+(21, 2, 'Smartphones', 18, NULL, 20000.00, 90, '', '2025-10-30 02:59:17'),
+(22, 2, 'Mats', 19, NULL, 999.00, 150, '', '2025-10-30 03:03:23');
 
 -- --------------------------------------------------------
 
@@ -152,7 +161,7 @@ CREATE TABLE IF NOT EXISTS `purchases` (
   PRIMARY KEY (`id`),
   KEY `supplier_id` (`supplier_id`),
   KEY `idx_purchases_admin` (`admin_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Dumping data for table `purchases`
@@ -161,7 +170,9 @@ CREATE TABLE IF NOT EXISTS `purchases` (
 INSERT INTO `purchases` (`id`, `admin_id`, `supplier_id`, `purchase_date`, `total_amount`) VALUES
 (1, 1, 2, '2025-10-28', 42999.00),
 (2, 1, 1, '2025-10-28', 17493.00),
-(3, 1, 14, '2025-10-28', 498000.00);
+(3, 1, 14, '2025-10-28', 498000.00),
+(4, 2, 15, '2025-10-30', 1214000.00),
+(5, 2, 22, '2025-10-30', 199800.00);
 
 -- --------------------------------------------------------
 
@@ -180,7 +191,7 @@ CREATE TABLE IF NOT EXISTS `purchase_items` (
   PRIMARY KEY (`id`),
   KEY `purchase_id` (`purchase_id`),
   KEY `product_id` (`product_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Dumping data for table `purchase_items`
@@ -189,7 +200,10 @@ CREATE TABLE IF NOT EXISTS `purchase_items` (
 INSERT INTO `purchase_items` (`id`, `purchase_id`, `product_id`, `quantity`, `unit_price`, `subtotal`) VALUES
 (1, 1, 15, 1, 42999.00, 42999.00),
 (2, 2, 12, 7, 2499.00, 17493.00),
-(3, 3, 17, 2, 249000.00, 498000.00);
+(3, 3, 17, 2, 249000.00, 498000.00),
+(4, 4, 21, 60, 20000.00, 1200000.00),
+(5, 4, 20, 100, 140.00, 14000.00),
+(6, 5, 22, 200, 999.00, 199800.00);
 
 -- --------------------------------------------------------
 
@@ -206,7 +220,7 @@ CREATE TABLE IF NOT EXISTS `sales` (
   `total_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
   PRIMARY KEY (`id`),
   KEY `customer_id` (`customer_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Dumping data for table `sales`
@@ -215,7 +229,9 @@ CREATE TABLE IF NOT EXISTS `sales` (
 INSERT INTO `sales` (`id`, `admin_id`, `customer_id`, `sale_date`, `total_amount`) VALUES
 (1, 1, 2, '2025-10-28', 44995.00),
 (2, 1, 2, '2025-10-28', 188979.00),
-(3, 1, 6, '2025-10-28', 50000.00);
+(3, 1, 6, '2025-10-28', 50000.00),
+(4, 2, 7, '2025-10-30', 14000.00),
+(5, 2, 9, '2025-10-30', 649950.00);
 
 -- --------------------------------------------------------
 
@@ -234,7 +250,7 @@ CREATE TABLE IF NOT EXISTS `sale_items` (
   PRIMARY KEY (`id`),
   KEY `sale_id` (`sale_id`),
   KEY `product_id` (`product_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Dumping data for table `sale_items`
@@ -243,7 +259,10 @@ CREATE TABLE IF NOT EXISTS `sale_items` (
 INSERT INTO `sale_items` (`id`, `sale_id`, `product_id`, `quantity`, `unit_price`, `subtotal`) VALUES
 (1, 1, 9, 5, 8999.00, 44995.00),
 (2, 2, 9, 21, 8999.00, 188979.00),
-(3, 3, 4, 5, 10000.00, 50000.00);
+(3, 3, 4, 5, 10000.00, 50000.00),
+(4, 4, 20, 100, 140.00, 14000.00),
+(5, 5, 21, 30, 20000.00, 600000.00),
+(6, 5, 22, 50, 999.00, 49950.00);
 
 -- --------------------------------------------------------
 
@@ -258,20 +277,26 @@ CREATE TABLE IF NOT EXISTS `suppliers` (
   `name` varchar(255) NOT NULL,
   `email` varchar(100) DEFAULT NULL,
   `phone` varchar(20) DEFAULT NULL,
-  `address` varchar(255) DEFAULT NULL,
+  `street_address` varchar(255) DEFAULT NULL,
+  `city` varchar(100) DEFAULT NULL,
+  `pin_code` varchar(20) DEFAULT NULL,
+  `state` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_suppliers_admin` (`admin_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Dumping data for table `suppliers`
 --
 
-INSERT INTO `suppliers` (`id`, `admin_id`, `name`, `email`, `phone`, `address`) VALUES
-(1, 1, 'AGC', 'agc@gmail.com', '88827837778', 'Shillong'),
-(2, 1, 'B Group', 'info@bgroup.com', '7787773787', 'Guwahati'),
-(3, 1, 'HP Group', 'info@hpgroup.com', '3333333343', 'Manipur'),
-(4, 1, 'bharat', 'bharatgaming2419@gmail.com', '8687473287', 'shillong');
+INSERT INTO `suppliers` (`id`, `admin_id`, `name`, `email`, `phone`, `street_address`, `city`, `pin_code`, `state`) VALUES
+(1, 1, 'AGC', 'agc@gmail.com', '88827837778', NULL, NULL, NULL, NULL),
+(2, 1, 'B Group', 'info@bgroup.com', '7787773787', NULL, NULL, NULL, NULL),
+(3, 1, 'HP Group', 'info@hpgroup.com', '3333333343', NULL, NULL, NULL, NULL),
+(14, 1, 'bharat', 'bharatgaming2419@gmail.com', '8687473287', NULL, NULL, NULL, NULL),
+(15, 2, 'abhishek', '16abhisheksinhaa@gmail.com', '8732062857', 'laban', 'Shillong', '793006', 'MEGHALAYA'),
+(21, 2, 'Joydeep', 'Joydeep12@gmail.com', '8839278432', 'Mawprem', 'shillong', '793005', 'MEGHALAYA'),
+(22, 2, 'Salman', NULL, '7534959347', 'Khanapara', 'guwahati', '878239', 'Assam');
 
 --
 -- Constraints for dumped tables
