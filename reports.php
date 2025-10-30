@@ -1,5 +1,12 @@
 <?php
+session_start();
+if (!isset($_SESSION['admin_id'])) {
+    header("Location: login.php");
+    exit();
+}
 require 'db.php';
+
+$admin_id = $_SESSION['admin_id'];
 
 // Get date range filter
 $filter = $_GET['filter'] ?? 'month';
@@ -21,22 +28,22 @@ switch($filter) {
         break;
 }
 
-// Total Sales
+// ✅ Total Sales (filtered by user)
 $sql_sales = "SELECT COUNT(*) as total_transactions, SUM(total_amount) as total_sales 
               FROM sales 
-              WHERE sale_date BETWEEN ? AND ?";
+              WHERE admin_id = ? AND sale_date BETWEEN ? AND ?";
 $stmt = $conn->prepare($sql_sales);
-$stmt->bind_param('ss', $date_from, $date_to);
+$stmt->bind_param('iss', $admin_id, $date_from, $date_to);
 $stmt->execute();
 $sales_data = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-// Total Purchases
+// ✅ Total Purchases (filtered by user)
 $sql_purchases = "SELECT COUNT(*) as total_transactions, SUM(total_amount) as total_purchases 
                   FROM purchases 
-                  WHERE purchase_date BETWEEN ? AND ?";
+                  WHERE admin_id = ? AND purchase_date BETWEEN ? AND ?";
 $stmt = $conn->prepare($sql_purchases);
-$stmt->bind_param('ss', $date_from, $date_to);
+$stmt->bind_param('iss', $admin_id, $date_from, $date_to);
 $stmt->execute();
 $purchases_data = $stmt->get_result()->fetch_assoc();
 $stmt->close();
@@ -46,7 +53,7 @@ $total_sales = $sales_data['total_sales'] ?? 0;
 $total_purchases = $purchases_data['total_purchases'] ?? 0;
 $profit_loss = $total_sales - $total_purchases;
 
-// Monthly breakdown for chart
+// ✅ Monthly breakdown for chart (filtered by user)
 $monthly_sql = "
     SELECT 
         DATE_FORMAT(date, '%Y-%m') as month,
@@ -55,63 +62,64 @@ $monthly_sql = "
         SUM(sales) - SUM(purchases) as profit
     FROM (
         SELECT sale_date as date, total_amount as sales, 0 as purchases FROM sales
-        WHERE sale_date BETWEEN ? AND ?
+        WHERE admin_id = ? AND sale_date BETWEEN ? AND ?
         UNION ALL
         SELECT purchase_date as date, 0 as sales, total_amount as purchases FROM purchases
-        WHERE purchase_date BETWEEN ? AND ?
+        WHERE admin_id = ? AND purchase_date BETWEEN ? AND ?
     ) combined
     GROUP BY month
     ORDER BY month DESC
     LIMIT 12
 ";
 $stmt = $conn->prepare($monthly_sql);
-$stmt->bind_param('ssss', $date_from, $date_to, $date_from, $date_to);
+$stmt->bind_param('ississ', $admin_id, $date_from, $date_to, $admin_id, $date_from, $date_to);
 $stmt->execute();
 $monthly_data = $stmt->get_result();
 $stmt->close();
 
-// Top selling products
+// ✅ Top selling products (filtered by user)
 $top_products_sql = "
     SELECT p.name, SUM(si.quantity) as total_qty, SUM(si.subtotal) as total_revenue
     FROM sale_items si
     JOIN products p ON si.product_id = p.id
     JOIN sales s ON si.sale_id = s.id
-    WHERE s.sale_date BETWEEN ? AND ?
+    WHERE s.admin_id = ? AND s.sale_date BETWEEN ? AND ?
     GROUP BY p.id
     ORDER BY total_revenue DESC
     LIMIT 5
 ";
 $stmt = $conn->prepare($top_products_sql);
-$stmt->bind_param('ss', $date_from, $date_to);
+$stmt->bind_param('iss', $admin_id, $date_from, $date_to);
 $stmt->execute();
 $top_products = $stmt->get_result();
 $stmt->close();
 
-// Recent transactions
+// ✅ Recent sales transactions (filtered by user)
 $recent_sales_sql = "
     SELECT s.id, s.sale_date, s.total_amount, c.name as customer_name
     FROM sales s
     LEFT JOIN customers c ON s.customer_id = c.id
-    WHERE s.sale_date BETWEEN ? AND ?
+    WHERE s.admin_id = ? AND s.sale_date BETWEEN ? AND ?
     ORDER BY s.sale_date DESC
     LIMIT 10
 ";
 $stmt = $conn->prepare($recent_sales_sql);
-$stmt->bind_param('ss', $date_from, $date_to);
+$stmt->bind_param('iss', $admin_id, $date_from, $date_to);
 $stmt->execute();
 $recent_sales = $stmt->get_result();
 $stmt->close();
 
+// ✅ Recent purchase transactions (filtered by user)
 $recent_purchases_sql = "
     SELECT p.id, p.purchase_date, p.total_amount, s.name as supplier_name
     FROM purchases p
     LEFT JOIN suppliers s ON p.supplier_id = s.id
-    WHERE p.purchase_date BETWEEN ? AND ?
+    WHERE p.admin_id = ? AND p.purchase_date BETWEEN ? AND ?
     ORDER BY p.purchase_date DESC
     LIMIT 10
 ";
 $stmt = $conn->prepare($recent_purchases_sql);
-$stmt->bind_param('ss', $date_from, $date_to);
+$stmt->bind_param('iss', $admin_id, $date_from, $date_to);
 $stmt->execute();
 $recent_purchases = $stmt->get_result();
 $stmt->close();
@@ -171,70 +179,13 @@ $stmt->close();
             cursor: pointer;
             font-weight: 600;
             transition: all 0.3s;
+            text-decoration: none;
         }
         
         .filter-btn:hover, .filter-btn.active {
             background: #3498db;
             color: white;
         }
-        
-        .summary-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .card {
-            background: white;
-            border-radius: 10px;
-            padding: 25px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-        }
-        
-        .card-header {
-            display: flex;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-        
-        .card-icon {
-            width: 50px;
-            height: 50px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            margin-right: 15px;
-        }
-        
-        .bg-success { background-color: #e8f5e9; color: #388e3c; }
-        .bg-danger { background-color: #ffebee; color: #d32f2f; }
-        .bg-warning { background-color: #fff8e1; color: #f57c00; }
-        .bg-info { background-color: #e3f2fd; color: #1976d2; }
-        
-        .card-title {
-            font-size: 0.9rem;
-            color: #7f8c8d;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .card-value {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #2c3e50;
-        }
-        
-        .card-subtitle {
-            font-size: 0.85rem;
-            color: #95a5a6;
-            margin-top: 5px;
-        }
-        
-        .profit { color: #27ae60; }
-        .loss { color: #e74c3c; }
         
         .chart-section {
             background: white;
@@ -280,26 +231,6 @@ $stmt->close();
             background-color: #f8f9fa;
         }
         
-        .back-btn {
-            display: inline-flex;
-            align-items: center;
-            padding: 10px 20px;
-            background: #3498db;
-            color: white;
-            text-decoration: none;
-            border-radius: 5px;
-            font-weight: 600;
-            transition: all 0.3s;
-        }
-        
-        .back-btn:hover {
-            background: #2980b9;
-        }
-        
-        .back-btn i {
-            margin-right: 8px;
-        }
-        
         @media (max-width: 768px) {
             .two-column {
                 grid-template-columns: 1fr;
@@ -334,65 +265,64 @@ $stmt->close();
             </div>
         </div>
 
-        <!-- Summary Cards -->
-        <div class="summary-cards">
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-icon bg-success">
-                        <i class="fas fa-dollar-sign"></i>
-                    </div>
-                    <div>
-                        <div class="card-title">Total Sales</div>
-                    </div>
-                </div>
-                <div class="card-value">₹<?= number_format($total_sales, 2) ?></div>
-                <div class="card-subtitle"><?= $sales_data['total_transactions'] ?> transactions</div>
+        <!-- Recent Transactions (Moved to Top) -->
+        <div class="two-column">
+            <!-- Recent Sales -->
+            <div class="chart-section">
+                <h3 class="section-title">Recent Sales</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Date</th>
+                            <th>Customer</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if($recent_sales->num_rows > 0): ?>
+                            <?php while($row = $recent_sales->fetch_assoc()): ?>
+                            <tr>
+                                <td>#<?= $row['id'] ?></td>
+                                <td><?= date('M d, Y', strtotime($row['sale_date'])) ?></td>
+                                <td><?= htmlspecialchars($row['customer_name'] ?? 'Walk-in') ?></td>
+                                <td>₹<?= number_format($row['total_amount'], 2) ?></td>
+                            </tr>
+                            <?php endwhile; ?>
+                        <?php else: ?>
+                            <tr><td colspan="4" style="text-align:center;">No sales in this period</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
 
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-icon bg-danger">
-                        <i class="fas fa-shopping-cart"></i>
-                    </div>
-                    <div>
-                        <div class="card-title">Total Purchases</div>
-                    </div>
-                </div>
-                <div class="card-value">₹<?= number_format($total_purchases, 2) ?></div>
-                <div class="card-subtitle"><?= $purchases_data['total_transactions'] ?> transactions</div>
-            </div>
-
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-icon <?= $profit_loss >= 0 ? 'bg-success' : 'bg-warning' ?>">
-                        <i class="fas fa-chart-line"></i>
-                    </div>
-                    <div>
-                        <div class="card-title">Profit / Loss</div>
-                    </div>
-                </div>
-                <div class="card-value <?= $profit_loss >= 0 ? 'profit' : 'loss' ?>">
-                    ₹<?= number_format(abs($profit_loss), 2) ?>
-                </div>
-                <div class="card-subtitle">
-                    <?= $profit_loss >= 0 ? 'Profit' : 'Loss' ?> 
-                    (<?= $total_purchases > 0 ? number_format(($profit_loss / $total_purchases) * 100, 2) : 0 ?>%)
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-icon bg-info">
-                        <i class="fas fa-percentage"></i>
-                    </div>
-                    <div>
-                        <div class="card-title">Profit Margin</div>
-                    </div>
-                </div>
-                <div class="card-value">
-                    <?= $total_sales > 0 ? number_format(($profit_loss / $total_sales) * 100, 2) : 0 ?>%
-                </div>
-                <div class="card-subtitle">Net margin</div>
+            <!-- Recent Purchases -->
+            <div class="chart-section">
+                <h3 class="section-title">Recent Purchases</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Date</th>
+                            <th>Supplier</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if($recent_purchases->num_rows > 0): ?>
+                            <?php while($row = $recent_purchases->fetch_assoc()): ?>
+                            <tr>
+                                <td>#<?= $row['id'] ?></td>
+                                <td><?= date('M d, Y', strtotime($row['purchase_date'])) ?></td>
+                                <td><?= htmlspecialchars($row['supplier_name'] ?? 'Unknown') ?></td>
+                                <td>₹<?= number_format($row['total_amount'], 2) ?></td>
+                            </tr>
+                            <?php endwhile; ?>
+                        <?php else: ?>
+                            <tr><td colspan="4" style="text-align:center;">No purchases in this period</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -476,73 +406,6 @@ $stmt->close();
                 <h3 class="section-title">Profit Distribution</h3>
                 <canvas id="profitChart"></canvas>
             </div>
-        </div>
-
-        <!-- Recent Transactions -->
-        <div class="two-column">
-            <!-- Recent Sales -->
-            <div class="chart-section">
-                <h3 class="section-title">Recent Sales</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Date</th>
-                            <th>Customer</th>
-                            <th>Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if($recent_sales->num_rows > 0): ?>
-                            <?php while($row = $recent_sales->fetch_assoc()): ?>
-                            <tr>
-                                <td>#<?= $row['id'] ?></td>
-                                <td><?= date('M d, Y', strtotime($row['sale_date'])) ?></td>
-                                <td><?= htmlspecialchars($row['customer_name'] ?? 'Walk-in') ?></td>
-                                <td>₹<?= number_format($row['total_amount'], 2) ?></td>
-                            </tr>
-                            <?php endwhile; ?>
-                        <?php else: ?>
-                            <tr><td colspan="4" style="text-align:center;">No sales in this period</td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Recent Purchases -->
-            <div class="chart-section">
-                <h3 class="section-title">Recent Purchases</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Date</th>
-                            <th>Supplier</th>
-                            <th>Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if($recent_purchases->num_rows > 0): ?>
-                            <?php while($row = $recent_purchases->fetch_assoc()): ?>
-                            <tr>
-                                <td>#<?= $row['id'] ?></td>
-                                <td><?= date('M d, Y', strtotime($row['purchase_date'])) ?></td>
-                                <td><?= htmlspecialchars($row['supplier_name'] ?? 'Unknown') ?></td>
-                                <td>₹<?= number_format($row['total_amount'], 2) ?></td>
-                            </tr>
-                            <?php endwhile; ?>
-                        <?php else: ?>
-                            <tr><td colspan="4" style="text-align:center;">No purchases in this period</td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div style="text-align: center; margin-top: 30px;">
-            <a href="front.php" class="back-btn">
-                <i class="fas fa-arrow-left"></i> Back to Dashboard
-            </a>
         </div>
     </div>
 

@@ -15,6 +15,17 @@ $admin_id = $_SESSION['admin_id'];
   <title>Sales</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <style>
+    .error-text {
+      color: #dc3545;
+      font-size: 0.875rem;
+      margin-top: 0.25rem;
+      display: none;
+    }
+    .is-invalid {
+      border-color: #dc3545;
+    }
+  </style>
 </head>
 <body class="p-3">
 
@@ -37,7 +48,6 @@ $admin_id = $_SESSION['admin_id'];
     </thead>
     <tbody>
       <?php
-      // ✅ Filter sales by admin_id
       $stmt = $conn->prepare("SELECT s.id, s.sale_date, s.total_amount, c.name AS customer_name
               FROM sales s
               LEFT JOIN customers c ON s.customer_id = c.id
@@ -122,29 +132,53 @@ $admin_id = $_SESSION['admin_id'];
 
   <!-- Add Customer Modal -->
   <div class="modal fade" id="addCustomerModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
       <div class="modal-content">
-        <form id="customerForm">
+        <form id="customerForm" novalidate>
           <div class="modal-header">
             <h5 class="modal-title">Add New Customer</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
-            <div class="mb-3">
-              <label for="customerName" class="form-label">Name *</label>
-              <input type="text" id="customerName" name="name" class="form-control" required>
-            </div>
-            <div class="mb-3">
-              <label for="customerEmail" class="form-label">Email</label>
-              <input type="email" id="customerEmail" name="email" class="form-control">
-            </div>
-            <div class="mb-3">
-              <label for="customerPhone" class="form-label">Phone</label>
-              <input type="text" id="customerPhone" name="phone" class="form-control">
-            </div>
-            <div class="mb-3">
-              <label for="customerAddress" class="form-label">Address</label>
-              <textarea id="customerAddress" name="address" class="form-control" rows="2"></textarea>
+            <div class="row">
+              <div class="col-12 mb-3">
+                <label for="customerName" class="form-label">Customer Name <span class="text-danger">*</span></label>
+                <input type="text" id="customerName" name="name" class="form-control" required>
+                <div class="error-text" id="customer_name_error">Name is required</div>
+              </div>
+              <div class="col-12 mb-3">
+                <label for="customerStreetAddress" class="form-label">Street Address <span class="text-danger">*</span></label>
+                <input type="text" id="customerStreetAddress" name="street_address" class="form-control" required>
+                <div class="error-text" id="customer_street_error">Street address is required</div>
+              </div>
+              <div class="col-md-4 mb-3">
+                <label for="customerCity" class="form-label">City <span class="text-danger">*</span></label>
+                <input type="text" id="customerCity" name="city" class="form-control" required>
+                <div class="error-text" id="customer_city_error">City is required</div>
+              </div>
+              <div class="col-md-4 mb-3">
+                <label for="customerPinCode" class="form-label">Pin Code <span class="text-danger">*</span></label>
+                <input type="text" id="customerPinCode" name="pin_code" class="form-control" maxlength="6" required>
+                <small class="text-muted">6 digits</small>
+                <div class="error-text" id="customer_pin_error">Pin code must be exactly 6 digits</div>
+              </div>
+              <div class="col-md-4 mb-3">
+                <label for="customerState" class="form-label">State <span class="text-danger">*</span></label>
+                <input type="text" id="customerState" name="state" class="form-control" required>
+                <div class="error-text" id="customer_state_error">State is required</div>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label for="customerPhone" class="form-label">Phone <span class="text-danger">*</span></label>
+                <input type="tel" id="customerPhone" name="phone" class="form-control" maxlength="10" required>
+                <small class="text-muted">10-digit number (starts with 6-9)</small>
+                <div class="error-text" id="customer_phone_error">Phone must be a valid 10-digit number</div>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label for="customerEmail" class="form-label">Email</label>
+                <input type="email" id="customerEmail" name="email" class="form-control">
+                <small class="text-muted">Optional</small>
+                <div class="error-text" id="customer_email_error">Invalid email format</div>
+              </div>
             </div>
           </div>
           <div class="modal-footer">
@@ -161,6 +195,30 @@ $admin_id = $_SESSION['admin_id'];
   <script>
   let products = [];
   let addCustomerModal, addSaleModal;
+
+  // Validation patterns
+  const phonePattern = /^[6-9]\d{9}$/;
+  const pinPattern = /^\d{6}$/;
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  // Validation function
+  function validateField(field, errorElement, validationFn, errorMsg) {
+    const value = field.value.trim();
+    const isValid = validationFn(value);
+    
+    if (!isValid) {
+      field.classList.add('is-invalid');
+      if (errorElement) {
+        errorElement.style.display = 'block';
+        if (errorMsg) errorElement.textContent = errorMsg;
+      }
+    } else {
+      field.classList.remove('is-invalid');
+      if (errorElement) errorElement.style.display = 'none';
+    }
+    
+    return isValid;
+  }
 
   $(document).ready(function() {
     addCustomerModal = new bootstrap.Modal(document.getElementById('addCustomerModal'));
@@ -189,12 +247,83 @@ $admin_id = $_SESSION['admin_id'];
 
   // Open Add Customer Modal
   $('#addCustomerBtn').click(function() {
+    $('#customerForm')[0].reset();
+    $('.error-text').hide();
+    $('.is-invalid').removeClass('is-invalid');
     addCustomerModal.show();
   });
 
-  // Submit new customer form
+  // Real-time validation for customer phone
+  $('#customerPhone').on('input', function() {
+    this.value = this.value.replace(/\D/g, '').substring(0, 10);
+  });
+
+  // Real-time validation for customer pin code
+  $('#customerPinCode').on('input', function() {
+    this.value = this.value.replace(/\D/g, '').substring(0, 6);
+  });
+
+  // Submit new customer form with validation
   $('#customerForm').submit(function(e) {
     e.preventDefault();
+    
+    let isValid = true;
+    
+    isValid &= validateField(
+      document.getElementById('customerName'),
+      document.getElementById('customer_name_error'),
+      (v) => v.length > 0,
+      'Name is required'
+    );
+    
+    isValid &= validateField(
+      document.getElementById('customerStreetAddress'),
+      document.getElementById('customer_street_error'),
+      (v) => v.length > 0,
+      'Street address is required'
+    );
+    
+    isValid &= validateField(
+      document.getElementById('customerCity'),
+      document.getElementById('customer_city_error'),
+      (v) => v.length > 0,
+      'City is required'
+    );
+    
+    isValid &= validateField(
+      document.getElementById('customerPinCode'),
+      document.getElementById('customer_pin_error'),
+      (v) => pinPattern.test(v),
+      'Pin code must be exactly 6 digits'
+    );
+    
+    isValid &= validateField(
+      document.getElementById('customerState'),
+      document.getElementById('customer_state_error'),
+      (v) => v.length > 0,
+      'State is required'
+    );
+    
+    isValid &= validateField(
+      document.getElementById('customerPhone'),
+      document.getElementById('customer_phone_error'),
+      (v) => phonePattern.test(v),
+      'Phone must be a valid 10-digit number'
+    );
+    
+    const emailField = document.getElementById('customerEmail');
+    const emailValue = emailField.value.trim();
+    if (emailValue.length > 0) {
+      isValid &= validateField(
+        emailField,
+        document.getElementById('customer_email_error'),
+        (v) => emailPattern.test(v),
+        'Invalid email format'
+      );
+    }
+    
+    if (!isValid) return;
+    
     $.ajax({
       url: 'add_customer.php',
       method: 'POST',
@@ -206,7 +335,6 @@ $admin_id = $_SESSION['admin_id'];
           $('#customerForm')[0].reset();
           addCustomerModal.hide();
           loadCustomers();
-          // Auto-select the newly added customer
           setTimeout(() => $('#customerSelect').val(res.id), 100);
         } else {
           alert('Error: ' + (res.msg || 'Unknown error'));

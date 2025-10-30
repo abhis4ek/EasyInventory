@@ -7,13 +7,14 @@ if (!isset($_SESSION['admin_id'])) {
 require 'db.php';
 $admin_id = $_SESSION['admin_id'];
 
+$id = (int)$_POST['id'];
 $name = trim($_POST['name'] ?? '');
-$email = trim($_POST['email'] ?? '');
-$phone = trim($_POST['phone'] ?? '');
 $street_address = trim($_POST['street_address'] ?? '');
 $city = trim($_POST['city'] ?? '');
 $pin_code = trim($_POST['pin_code'] ?? '');
 $state = trim($_POST['state'] ?? '');
+$phone = trim($_POST['phone'] ?? '');
+$email = trim($_POST['email'] ?? '');
 
 // Validation
 $errors = [];
@@ -48,11 +49,11 @@ if (!empty($errors)) {
 // Convert empty email to NULL
 $email = $email ?: null;
 
-$stmt = $conn->prepare("INSERT INTO suppliers (admin_id, name, street_address, city, pin_code, state, phone, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-$stmt->bind_param('isssssss', $admin_id, $name, $street_address, $city, $pin_code, $state, $phone, $email);
+$stmt = $conn->prepare('UPDATE customers SET name = ?, street_address = ?, city = ?, pin_code = ?, state = ?, phone = ?, email = ? WHERE id = ? AND admin_id = ?');
+$stmt->bind_param('sssssssii', $name, $street_address, $city, $pin_code, $state, $phone, $email, $id, $admin_id);
 
 if ($stmt->execute()) {
-    echo json_encode(['status'=>'success', 'id'=>$stmt->insert_id, 'name'=>$name]);
+    echo json_encode(['status'=>'success']);
 } else {
     echo json_encode(['status'=>'error', 'msg'=>$stmt->error]);
 }

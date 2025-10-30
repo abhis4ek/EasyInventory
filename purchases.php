@@ -15,6 +15,17 @@ $admin_id = $_SESSION['admin_id'];
   <title>Purchases</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <style>
+    .error-text {
+      color: #dc3545;
+      font-size: 0.875rem;
+      margin-top: 0.25rem;
+      display: none;
+    }
+    .is-invalid {
+      border-color: #dc3545;
+    }
+  </style>
 </head>
 <body class="p-3">
 
@@ -37,7 +48,6 @@ $admin_id = $_SESSION['admin_id'];
     </thead>
     <tbody>
       <?php
-      // ✅ Filter purchases by admin_id
       $stmt = $conn->prepare("SELECT p.id, p.purchase_date, p.total_amount, s.name AS supplier_name
               FROM purchases p
               LEFT JOIN suppliers s ON p.supplier_id = s.id
@@ -122,29 +132,53 @@ $admin_id = $_SESSION['admin_id'];
 
   <!-- Add Supplier Modal -->
   <div class="modal fade" id="addSupplierModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
       <div class="modal-content">
-        <form id="supplierForm">
+        <form id="supplierForm" novalidate>
           <div class="modal-header">
             <h5 class="modal-title">Add New Supplier</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
-            <div class="mb-3">
-              <label for="supplierName" class="form-label">Name *</label>
-              <input type="text" id="supplierName" name="name" class="form-control" required>
-            </div>
-            <div class="mb-3">
-              <label for="supplierEmail" class="form-label">Email</label>
-              <input type="email" id="supplierEmail" name="email" class="form-control">
-            </div>
-            <div class="mb-3">
-              <label for="supplierPhone" class="form-label">Phone</label>
-              <input type="text" id="supplierPhone" name="phone" class="form-control">
-            </div>
-            <div class="mb-3">
-              <label for="supplierAddress" class="form-label">Address</label>
-              <textarea id="supplierAddress" name="address" class="form-control" rows="2"></textarea>
+            <div class="row">
+              <div class="col-12 mb-3">
+                <label for="supplierName" class="form-label">Supplier Name <span class="text-danger">*</span></label>
+                <input type="text" id="supplierName" name="name" class="form-control" required>
+                <div class="error-text" id="supplier_name_error">Name is required</div>
+              </div>
+              <div class="col-12 mb-3">
+                <label for="supplierStreetAddress" class="form-label">Street Address <span class="text-danger">*</span></label>
+                <input type="text" id="supplierStreetAddress" name="street_address" class="form-control" required>
+                <div class="error-text" id="supplier_street_error">Street address is required</div>
+              </div>
+              <div class="col-md-4 mb-3">
+                <label for="supplierCity" class="form-label">City <span class="text-danger">*</span></label>
+                <input type="text" id="supplierCity" name="city" class="form-control" required>
+                <div class="error-text" id="supplier_city_error">City is required</div>
+              </div>
+              <div class="col-md-4 mb-3">
+                <label for="supplierPinCode" class="form-label">Pin Code <span class="text-danger">*</span></label>
+                <input type="text" id="supplierPinCode" name="pin_code" class="form-control" maxlength="6" required>
+                <small class="text-muted">6 digits</small>
+                <div class="error-text" id="supplier_pin_error">Pin code must be exactly 6 digits</div>
+              </div>
+              <div class="col-md-4 mb-3">
+                <label for="supplierState" class="form-label">State <span class="text-danger">*</span></label>
+                <input type="text" id="supplierState" name="state" class="form-control" required>
+                <div class="error-text" id="supplier_state_error">State is required</div>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label for="supplierPhone" class="form-label">Phone <span class="text-danger">*</span></label>
+                <input type="tel" id="supplierPhone" name="phone" class="form-control" maxlength="10" required>
+                <small class="text-muted">10-digit number (starts with 6-9)</small>
+                <div class="error-text" id="supplier_phone_error">Phone must be a valid 10-digit number</div>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label for="supplierEmail" class="form-label">Email</label>
+                <input type="email" id="supplierEmail" name="email" class="form-control">
+                <small class="text-muted">Optional</small>
+                <div class="error-text" id="supplier_email_error">Invalid email format</div>
+              </div>
             </div>
           </div>
           <div class="modal-footer">
@@ -156,27 +190,125 @@ $admin_id = $_SESSION['admin_id'];
     </div>
   </div>
 
+  <!-- Add Product Modal -->
+  <div class="modal fade" id="addProductModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="productForm" novalidate>
+          <div class="modal-header">
+            <h5 class="modal-title">Add New Product</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="productName" class="form-label">Product Name <span class="text-danger">*</span></label>
+              <input type="text" id="productName" name="name" class="form-control" required>
+            </div>
+            <div class="mb-3">
+              <label for="productCategory" class="form-label">Category <span class="text-danger">*</span></label>
+              <div class="input-group">
+                <select id="productCategory" name="category_id" class="form-select" required>
+                  <option value="">-- Select Category --</option>
+                </select>
+                <button type="button" class="btn btn-outline-secondary" id="addCategoryBtn">+ New</button>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label for="productPrice" class="form-label">Price <span class="text-danger">*</span></label>
+              <input type="number" id="productPrice" name="price" class="form-control" step="0.01" min="0" required>
+            </div>
+            <div class="mb-3">
+              <label for="productStock" class="form-label">Initial Stock</label>
+              <input type="number" id="productStock" name="stock" class="form-control" min="0" value="0">
+            </div>
+            <div class="mb-3">
+              <label for="productDescription" class="form-label">Description</label>
+              <textarea id="productDescription" name="description" class="form-control" rows="2"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Product</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Category Modal -->
+  <div class="modal fade" id="addCategoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="categoryForm" novalidate>
+          <div class="modal-header">
+            <h5 class="modal-title">Add New Category</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="categoryName" class="form-label">Category Name <span class="text-danger">*</span></label>
+              <input type="text" id="categoryName" name="name" class="form-control" required>
+            </div>
+            <div class="mb-3">
+              <label for="categoryDescription" class="form-label">Description</label>
+              <input type="text" id="categoryDescription" name="description" class="form-control">
+            </div>
+            <div class="mb-3">
+              <label for="categoryGstRate" class="form-label">GST Rate (%) <span class="text-danger">*</span></label>
+              <input type="number" id="categoryGstRate" name="gst_rate" class="form-control" step="0.01" min="0" max="100" value="0" required>
+              <small class="text-muted">Enter rate between 0-100%</small>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Category</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
   let products = [];
-  let addSupplierModal, addPurchaseModal;
+  let addSupplierModal, addPurchaseModal, addProductModal, addCategoryModal;
+  let currentProductRow = null;
+
+  // Validation patterns
+  const phonePattern = /^[6-9]\d{9}$/;
+  const pinPattern = /^\d{6}$/;
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  // Validation function
+  function validateField(field, errorElement, validationFn, errorMsg) {
+    const value = field.value.trim();
+    const isValid = validationFn(value);
+    
+    if (!isValid) {
+      field.classList.add('is-invalid');
+      if (errorElement) {
+        errorElement.style.display = 'block';
+        if (errorMsg) errorElement.textContent = errorMsg;
+      }
+    } else {
+      field.classList.remove('is-invalid');
+      if (errorElement) errorElement.style.display = 'none';
+    }
+    
+    return isValid;
+  }
 
   $(document).ready(function() {
     addSupplierModal = new bootstrap.Modal(document.getElementById('addSupplierModal'));
     addPurchaseModal = new bootstrap.Modal(document.getElementById('addPurchaseModal'));
+    addProductModal = new bootstrap.Modal(document.getElementById('addProductModal'));
+    addCategoryModal = new bootstrap.Modal(document.getElementById('addCategoryModal'));
   });
 
-  // Load suppliers & products when modal opens
   $('#addPurchaseModal').on('show.bs.modal', function() {
     loadSuppliers();
-
-    // Load products only once
-    if (products.length === 0) {
-      $.getJSON('get_products.php', function(data) {
-        products = data;
-      });
-    }
+    loadProducts();
   });
 
   function loadSuppliers() {
@@ -187,14 +319,99 @@ $admin_id = $_SESSION['admin_id'];
     });
   }
 
+  function loadProducts() {
+    $.getJSON('get_products.php', function(data) {
+      products = data;
+    });
+  }
+
+  function loadCategories() {
+    $.getJSON('get_categories.php', function(data) {
+      let html = '<option value="">-- Select Category --</option>';
+      data.forEach(c => html += `<option value="${c.id}">${c.name}</option>`);
+      $('#productCategory').html(html);
+    });
+  }
+
   // Open Add Supplier Modal
   $('#addSupplierBtn').click(function() {
+    $('#supplierForm')[0].reset();
+    $('.error-text').hide();
+    $('.is-invalid').removeClass('is-invalid');
     addSupplierModal.show();
   });
 
-  // Submit new supplier form
+  // Real-time validation for supplier phone
+  $('#supplierPhone').on('input', function() {
+    this.value = this.value.replace(/\D/g, '').substring(0, 10);
+  });
+
+  // Real-time validation for supplier pin code
+  $('#supplierPinCode').on('input', function() {
+    this.value = this.value.replace(/\D/g, '').substring(0, 6);
+  });
+
+  // Submit new supplier form with validation
   $('#supplierForm').submit(function(e) {
     e.preventDefault();
+    
+    let isValid = true;
+    
+    isValid &= validateField(
+      document.getElementById('supplierName'),
+      document.getElementById('supplier_name_error'),
+      (v) => v.length > 0,
+      'Name is required'
+    );
+    
+    isValid &= validateField(
+      document.getElementById('supplierStreetAddress'),
+      document.getElementById('supplier_street_error'),
+      (v) => v.length > 0,
+      'Street address is required'
+    );
+    
+    isValid &= validateField(
+      document.getElementById('supplierCity'),
+      document.getElementById('supplier_city_error'),
+      (v) => v.length > 0,
+      'City is required'
+    );
+    
+    isValid &= validateField(
+      document.getElementById('supplierPinCode'),
+      document.getElementById('supplier_pin_error'),
+      (v) => pinPattern.test(v),
+      'Pin code must be exactly 6 digits'
+    );
+    
+    isValid &= validateField(
+      document.getElementById('supplierState'),
+      document.getElementById('supplier_state_error'),
+      (v) => v.length > 0,
+      'State is required'
+    );
+    
+    isValid &= validateField(
+      document.getElementById('supplierPhone'),
+      document.getElementById('supplier_phone_error'),
+      (v) => phonePattern.test(v),
+      'Phone must be a valid 10-digit number'
+    );
+    
+    const emailField = document.getElementById('supplierEmail');
+    const emailValue = emailField.value.trim();
+    if (emailValue.length > 0) {
+      isValid &= validateField(
+        emailField,
+        document.getElementById('supplier_email_error'),
+        (v) => emailPattern.test(v),
+        'Invalid email format'
+      );
+    }
+    
+    if (!isValid) return;
+    
     $.ajax({
       url: 'add_supplier.php',
       method: 'POST',
@@ -206,7 +423,6 @@ $admin_id = $_SESSION['admin_id'];
           $('#supplierForm')[0].reset();
           addSupplierModal.hide();
           loadSuppliers();
-          // Auto-select the newly added supplier
           setTimeout(() => $('#supplierSelect').val(res.id), 100);
         } else {
           alert('Error: ' + (res.msg || 'Unknown error'));
@@ -223,10 +439,13 @@ $admin_id = $_SESSION['admin_id'];
     let row = `
       <tr>
         <td>
-          <select class="form-select productSelect" name="product_id[]" required>
-            <option value="">Select</option>
-            ${products.map(p => `<option value="${p.id}" data-price="${p.price}">${p.name}</option>`).join('')}
-          </select>
+          <div class="input-group">
+            <select class="form-select productSelect" name="product_id[]" required>
+              <option value="">Select</option>
+              ${products.map(p => `<option value="${p.id}" data-price="${p.price}">${p.name}</option>`).join('')}
+            </select>
+            <button type="button" class="btn btn-outline-secondary btn-sm addNewProductBtn">+ New</button>
+          </div>
         </td>
         <td><input type="number" name="quantity[]" class="form-control qtyInput" min="1" value="1" required></td>
         <td><input type="number" name="unit_price[]" class="form-control priceInput" min="0" step="0.01" required></td>
@@ -236,17 +455,104 @@ $admin_id = $_SESSION['admin_id'];
     $('#purchaseItemsTable tbody').append(row);
   });
 
-  // When product selected, auto-fill price
+  // Open Add Product Modal
+  $(document).on('click', '.addNewProductBtn', function() {
+    currentProductRow = $(this).closest('tr');
+    loadCategories();
+    $('#productForm')[0].reset();
+    addProductModal.show();
+  });
+
+  // Open Add Category Modal
+  $('#addCategoryBtn').click(function() {
+    $('#categoryForm')[0].reset();
+    addCategoryModal.show();
+  });
+
+  // Submit new category form
+  $('#categoryForm').submit(function(e) {
+    e.preventDefault();
+    $.ajax({
+      url: 'add_category.php',
+      method: 'POST',
+      data: $(this).serialize(),
+      dataType: 'json',
+      success: function(res) {
+        if (res.status === 'success') {
+          alert('Category added successfully!');
+          $('#categoryForm')[0].reset();
+          addCategoryModal.hide();
+          loadCategories();
+          setTimeout(() => $('#productCategory').val(res.id), 100);
+        } else {
+          alert('Error: ' + (res.msg || 'Unknown error'));
+        }
+      },
+      error: function() {
+        alert('Failed to add category.');
+      }
+    });
+  });
+
+  // Submit new product form
+  $('#productForm').submit(function(e) {
+    e.preventDefault();
+    $.ajax({
+      url: 'add_product.php',
+      method: 'POST',
+      data: $(this).serialize(),
+      success: function(res) {
+        if (res.trim() === 'success') {
+          alert('Product added successfully!');
+          $('#productForm')[0].reset();
+          addProductModal.hide();
+          loadProducts();
+          setTimeout(() => {
+            refreshProductDropdowns();
+          }, 200);
+        } else {
+          alert('Error: ' + res);
+        }
+      },
+      error: function() {
+        alert('Failed to add product.');
+      }
+    });
+  });
+
+  function refreshProductDropdowns() {
+    $('.productSelect').each(function() {
+      const currentVal = $(this).val();
+      let html = '<option value="">Select</option>';
+      products.forEach(p => {
+        html += `<option value="${p.id}" data-price="${p.price}">${p.name}</option>`;
+      });
+      $(this).html(html);
+      
+      if (currentVal) {
+        $(this).val(currentVal);
+      }
+      
+      if (currentProductRow && $(this).closest('tr').is(currentProductRow)) {
+        if (products.length > 0) {
+          const lastProduct = products[products.length - 1];
+          $(this).val(lastProduct.id);
+          $(this).closest('tr').find('.priceInput').val(lastProduct.price);
+          updateTotals();
+        }
+      }
+    });
+    currentProductRow = null;
+  }
+
   $(document).on('change', '.productSelect', function() {
     const price = $(this).find(':selected').data('price') || 0;
     $(this).closest('tr').find('.priceInput').val(price);
     updateTotals();
   });
 
-  // Update total when qty or price changes
   $(document).on('input', '.qtyInput, .priceInput', updateTotals);
 
-  // Remove row
   $(document).on('click', '.removeRow', function() {
     $(this).closest('tr').remove();
     updateTotals();
@@ -264,7 +570,6 @@ $admin_id = $_SESSION['admin_id'];
     $('#grandTotal').text(grandTotal.toFixed(2));
   }
 
-  // Submit purchase form
   $('#purchaseForm').submit(function(e) {
     e.preventDefault();
     $.ajax({
