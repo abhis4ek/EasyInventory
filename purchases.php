@@ -14,6 +14,7 @@ $admin_id = $_SESSION['admin_id'];
   <meta charset="UTF-8">
   <title>Purchases</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <style>
     .error-text {
@@ -25,6 +26,29 @@ $admin_id = $_SESSION['admin_id'];
     .is-invalid {
       border-color: #dc3545;
     }
+    .purchase-row {
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .purchase-row:hover {
+      background-color: #f8f9fa;
+    }
+    .details-row {
+      display: none;
+      background-color: #f8f9fa;
+    }
+    .details-table {
+      margin: 15px 0;
+    }
+    .action-btn {
+      margin: 0 5px;
+    }
+    .expand-icon {
+      transition: transform 0.3s;
+    }
+    .expanded .expand-icon {
+      transform: rotate(90deg);
+    }
   </style>
 </head>
 <body class="p-3">
@@ -32,51 +56,105 @@ $admin_id = $_SESSION['admin_id'];
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h2>Purchases</h2>
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPurchaseModal">
-      + Add Purchase
+      <i class="fas fa-plus"></i> Add Purchase
     </button>
   </div>
 
   <!-- Purchases table -->
-  <table class="table table-bordered">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Date</th>
-        <th>Supplier</th>
-        <th>Total</th>
-      </tr>
-    </thead>
-    <tbody>
-      <?php
-      $stmt = $conn->prepare("SELECT p.id, p.purchase_date, p.total_amount, s.name AS supplier_name
-              FROM purchases p
-              LEFT JOIN suppliers s ON p.supplier_id = s.id
-              WHERE p.admin_id = ?
-              ORDER BY p.purchase_date DESC");
-      $stmt->bind_param('i', $admin_id);
-      $stmt->execute();
-      $res = $stmt->get_result();
-      
-      if($res->num_rows > 0):
-        while($row = $res->fetch_assoc()):
-      ?>
-      <tr>
-        <td><?= $row['id'] ?></td>
-        <td><?= $row['purchase_date'] ?></td>
-        <td><?= htmlspecialchars($row['supplier_name'] ?? 'N/A') ?></td>
-        <td>₹<?= number_format($row['total_amount'], 2) ?></td>
-      </tr>
-      <?php 
-        endwhile;
-      else:
-      ?>
-      <tr><td colspan="4" style="text-align:center;">No purchases found.</td></tr>
-      <?php 
-      endif;
-      $stmt->close();
-      ?>
-    </tbody>
-  </table>
+  <div class="table-responsive">
+    <table class="table table-bordered table-hover">
+      <thead class="table-light">
+        <tr>
+          <th style="width: 50px;"></th>
+          <th>ID</th>
+          <th>Date</th>
+          <th>Supplier</th>
+          <th>Total</th>
+          <th style="width: 200px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php
+        $stmt = $conn->prepare("SELECT p.id, p.purchase_date, p.total_amount, s.name AS supplier_name
+                FROM purchases p
+                LEFT JOIN suppliers s ON p.supplier_id = s.id
+                WHERE p.admin_id = ?
+                ORDER BY p.purchase_date DESC, p.id DESC");
+        $stmt->bind_param('i', $admin_id);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        
+        if($res->num_rows > 0):
+          while($row = $res->fetch_assoc()):
+            $purchase_id = $row['id'];
+            
+            // Fetch items for this purchase
+            $items_stmt = $conn->prepare("SELECT pi.*, pr.name as product_name
+                    FROM purchase_items pi
+                    JOIN products pr ON pi.product_id = pr.id
+                    WHERE pi.purchase_id = ?");
+            $items_stmt->bind_param('i', $purchase_id);
+            $items_stmt->execute();
+            $items_res = $items_stmt->get_result();
+            $items = [];
+            while($item = $items_res->fetch_assoc()) {
+              $items[] = $item;
+            }
+            $items_stmt->close();
+        ?>
+        <tr class="purchase-row" onclick="toggleDetails(<?= $purchase_id ?>)">
+          <td class="text-center">
+            <i class="fas fa-chevron-right expand-icon" id="icon-<?= $purchase_id ?>"></i>
+          </td>
+          <td><strong>#<?= $row['id'] ?></strong></td>
+          <td><?= date('M d, Y', strtotime($row['purchase_date'])) ?></td>
+          <td><?= htmlspecialchars($row['supplier_name'] ?? 'N/A') ?></td>
+          <td><strong>₹<?= number_format($row['total_amount'], 2) ?></strong></td>
+          <td>
+            <button class="btn btn-sm btn-danger action-btn" onclick="event.stopPropagation(); deletePurchase(<?= $purchase_id ?>)">
+              <i class="fas fa-trash"></i> Delete
+            </button>
+          </td>
+        </tr>
+        <tr class="details-row" id="details-<?= $purchase_id ?>">
+          <td colspan="6">
+            <div class="p-3">
+              <h6><i class="fas fa-box"></i> Purchased Items:</h6>
+              <table class="table table-sm table-striped details-table">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Quantity</th>
+                    <th>Unit Price</th>
+                    <th>Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach($items as $item): ?>
+                  <tr>
+                    <td><?= htmlspecialchars($item['product_name']) ?></td>
+                    <td><?= $item['quantity'] ?></td>
+                    <td>₹<?= number_format($item['unit_price'], 2) ?></td>
+                    <td>₹<?= number_format($item['subtotal'], 2) ?></td>
+                  </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
+          </td>
+        </tr>
+        <?php 
+          endwhile;
+        else:
+        ?>
+        <tr><td colspan="6" class="text-center py-4">No purchases found.</td></tr>
+        <?php 
+        endif;
+        $stmt->close();
+        ?>
+      </tbody>
+    </table>
+  </div>
 
   <!-- Add Purchase Modal -->
   <div class="modal fade" id="addPurchaseModal" tabindex="-1" aria-hidden="true">
@@ -297,6 +375,48 @@ $admin_id = $_SESSION['admin_id'];
     }
     
     return isValid;
+  }
+
+  // Toggle details row
+  function toggleDetails(id) {
+    const detailsRow = document.getElementById('details-' + id);
+    const icon = document.getElementById('icon-' + id);
+    const parentRow = icon.closest('tr');
+    
+    if (detailsRow.style.display === 'table-row') {
+      detailsRow.style.display = 'none';
+      parentRow.classList.remove('expanded');
+    } else {
+      detailsRow.style.display = 'table-row';
+      parentRow.classList.add('expanded');
+    }
+  }
+
+  // Delete purchase
+  function deletePurchase(id) {
+    if (!confirm('Are you sure you want to delete this purchase?\n\nThis will also remove all associated items and reverse stock changes.')) {
+      return;
+    }
+    
+    $.ajax({
+      url: 'delete_purchase.php',
+      method: 'POST',
+      data: { id: id },
+      success: function(res) {
+        if (res.trim() === 'success') {
+          alert('Purchase deleted successfully!');
+          try {
+            window.parent.postMessage('refreshDashboard', '*');
+          } catch(e) {}
+          location.reload();
+        } else {
+          alert('Error: ' + res);
+        }
+      },
+      error: function() {
+        alert('Failed to delete purchase.');
+      }
+    });
   }
 
   $(document).ready(function() {
@@ -570,7 +690,6 @@ $admin_id = $_SESSION['admin_id'];
     $('#grandTotal').text(grandTotal.toFixed(2));
   }
 
-  // ⭐ THIS IS THE CHANGED PART ⭐
   $('#purchaseForm').submit(function(e) {
     e.preventDefault();
     $.ajax({
@@ -581,13 +700,9 @@ $admin_id = $_SESSION['admin_id'];
         if (res.trim() === 'success') {
           alert('Purchase added successfully!');
           
-          // Send message to parent window to refresh dashboard
           try {
             window.parent.postMessage('refreshDashboard', '*');
-            console.log('Refresh message sent to dashboard');
-          } catch(e) {
-            console.log('Could not send message to parent:', e);
-          }
+          } catch(e) {}
           
           location.reload();
         } else {

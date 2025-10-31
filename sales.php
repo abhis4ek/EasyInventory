@@ -14,6 +14,7 @@ $admin_id = $_SESSION['admin_id'];
   <meta charset="UTF-8">
   <title>Sales</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <style>
     .error-text {
@@ -25,6 +26,29 @@ $admin_id = $_SESSION['admin_id'];
     .is-invalid {
       border-color: #dc3545;
     }
+    .sale-row {
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .sale-row:hover {
+      background-color: #f8f9fa;
+    }
+    .details-row {
+      display: none;
+      background-color: #f8f9fa;
+    }
+    .details-table {
+      margin: 15px 0;
+    }
+    .action-btn {
+      margin: 0 5px;
+    }
+    .expand-icon {
+      transition: transform 0.3s;
+    }
+    .expanded .expand-icon {
+      transform: rotate(90deg);
+    }
   </style>
 </head>
 <body class="p-3">
@@ -32,51 +56,105 @@ $admin_id = $_SESSION['admin_id'];
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h2>Sales</h2>
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addSaleModal">
-      + Add Sale
+      <i class="fas fa-plus"></i> Add Sale
     </button>
   </div>
 
-  <!-- Table of previous sales -->
-  <table class="table table-bordered">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Date</th>
-        <th>Customer</th>
-        <th>Total</th>
-      </tr>
-    </thead>
-    <tbody>
-      <?php
-      $stmt = $conn->prepare("SELECT s.id, s.sale_date, s.total_amount, c.name AS customer_name
-              FROM sales s
-              LEFT JOIN customers c ON s.customer_id = c.id
-              WHERE s.admin_id = ?
-              ORDER BY s.sale_date DESC");
-      $stmt->bind_param('i', $admin_id);
-      $stmt->execute();
-      $res = $stmt->get_result();
-      
-      if($res->num_rows > 0):
-        while($row = $res->fetch_assoc()):
-      ?>
-      <tr>
-        <td><?= $row['id'] ?></td>
-        <td><?= $row['sale_date'] ?></td>
-        <td><?= htmlspecialchars($row['customer_name'] ?? 'Walk-in') ?></td>
-        <td>₹<?= number_format($row['total_amount'], 2) ?></td>
-      </tr>
-      <?php 
-        endwhile;
-      else:
-      ?>
-      <tr><td colspan="4" style="text-align:center;">No sales found.</td></tr>
-      <?php 
-      endif;
-      $stmt->close();
-      ?>
-    </tbody>
-  </table>
+  <!-- Table of sales -->
+  <div class="table-responsive">
+    <table class="table table-bordered table-hover">
+      <thead class="table-light">
+        <tr>
+          <th style="width: 50px;"></th>
+          <th>ID</th>
+          <th>Date</th>
+          <th>Customer</th>
+          <th>Total</th>
+          <th style="width: 200px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php
+        $stmt = $conn->prepare("SELECT s.id, s.sale_date, s.total_amount, c.name AS customer_name
+                FROM sales s
+                LEFT JOIN customers c ON s.customer_id = c.id
+                WHERE s.admin_id = ?
+                ORDER BY s.sale_date DESC, s.id DESC");
+        $stmt->bind_param('i', $admin_id);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        
+        if($res->num_rows > 0):
+          while($row = $res->fetch_assoc()):
+            $sale_id = $row['id'];
+            
+            // Fetch items for this sale
+            $items_stmt = $conn->prepare("SELECT si.*, pr.name as product_name
+                    FROM sale_items si
+                    JOIN products pr ON si.product_id = pr.id
+                    WHERE si.sale_id = ?");
+            $items_stmt->bind_param('i', $sale_id);
+            $items_stmt->execute();
+            $items_res = $items_stmt->get_result();
+            $items = [];
+            while($item = $items_res->fetch_assoc()) {
+              $items[] = $item;
+            }
+            $items_stmt->close();
+        ?>
+        <tr class="sale-row" onclick="toggleDetails(<?= $sale_id ?>)">
+          <td class="text-center">
+            <i class="fas fa-chevron-right expand-icon" id="icon-<?= $sale_id ?>"></i>
+          </td>
+          <td><strong>#<?= $row['id'] ?></strong></td>
+          <td><?= date('M d, Y', strtotime($row['sale_date'])) ?></td>
+          <td><?= htmlspecialchars($row['customer_name'] ?? 'Walk-in Customer') ?></td>
+          <td><strong>₹<?= number_format($row['total_amount'], 2) ?></strong></td>
+          <td>
+            <button class="btn btn-sm btn-danger action-btn" onclick="event.stopPropagation(); deleteSale(<?= $sale_id ?>)">
+              <i class="fas fa-trash"></i> Delete
+            </button>
+          </td>
+        </tr>
+        <tr class="details-row" id="details-<?= $sale_id ?>">
+          <td colspan="6">
+            <div class="p-3">
+              <h6><i class="fas fa-shopping-bag"></i> Sold Items:</h6>
+              <table class="table table-sm table-striped details-table">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Quantity</th>
+                    <th>Unit Price</th>
+                    <th>Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach($items as $item): ?>
+                  <tr>
+                    <td><?= htmlspecialchars($item['product_name']) ?></td>
+                    <td><?= $item['quantity'] ?></td>
+                    <td>₹<?= number_format($item['unit_price'], 2) ?></td>
+                    <td>₹<?= number_format($item['subtotal'], 2) ?></td>
+                  </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
+          </td>
+        </tr>
+        <?php 
+          endwhile;
+        else:
+        ?>
+        <tr><td colspan="6" class="text-center py-4">No sales found.</td></tr>
+        <?php 
+        endif;
+        $stmt->close();
+        ?>
+      </tbody>
+    </table>
+  </div>
 
   <!-- Add Sale Modal -->
   <div class="modal fade" id="addSaleModal" tabindex="-1" aria-hidden="true">
@@ -196,12 +274,10 @@ $admin_id = $_SESSION['admin_id'];
   let products = [];
   let addCustomerModal, addSaleModal;
 
-  // Validation patterns
   const phonePattern = /^[6-9]\d{9}$/;
   const pinPattern = /^\d{6}$/;
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-  // Validation function
   function validateField(field, errorElement, validationFn, errorMsg) {
     const value = field.value.trim();
     const isValid = validationFn(value);
@@ -220,16 +296,51 @@ $admin_id = $_SESSION['admin_id'];
     return isValid;
   }
 
+  function toggleDetails(id) {
+    const detailsRow = document.getElementById('details-' + id);
+    const icon = document.getElementById('icon-' + id);
+    const parentRow = icon.closest('tr');
+    
+    if (detailsRow.style.display === 'table-row') {
+      detailsRow.style.display = 'none';
+      parentRow.classList.remove('expanded');
+    } else {
+      detailsRow.style.display = 'table-row';
+      parentRow.classList.add('expanded');
+    }
+  }
+
+  function deleteSale(id) {
+    if (!confirm('Are you sure you want to delete this sale?\n\nThis will also remove all associated items and restore stock.')) {
+      return;
+    }
+    
+    $.ajax({
+      url: 'delete_sale.php',
+      method: 'POST',
+      data: { id: id },
+      success: function(res) {
+        if (res.trim() === 'success') {
+          alert('Sale deleted successfully!');
+          location.reload();
+        } else {
+          alert('Error: ' + res);
+        }
+      },
+      error: function() {
+        alert('Failed to delete sale.');
+      }
+    });
+  }
+
   $(document).ready(function() {
     addCustomerModal = new bootstrap.Modal(document.getElementById('addCustomerModal'));
     addSaleModal = new bootstrap.Modal(document.getElementById('addSaleModal'));
   });
 
-  // Load customers & products when modal opens
   $('#addSaleModal').on('show.bs.modal', function() {
     loadCustomers();
 
-    // Load products (once)
     if (products.length === 0) {
       $.getJSON('get_products.php', function(data) {
         products = data;
@@ -245,7 +356,6 @@ $admin_id = $_SESSION['admin_id'];
     });
   }
 
-  // Open Add Customer Modal
   $('#addCustomerBtn').click(function() {
     $('#customerForm')[0].reset();
     $('.error-text').hide();
@@ -253,17 +363,14 @@ $admin_id = $_SESSION['admin_id'];
     addCustomerModal.show();
   });
 
-  // Real-time validation for customer phone
   $('#customerPhone').on('input', function() {
     this.value = this.value.replace(/\D/g, '').substring(0, 10);
   });
 
-  // Real-time validation for customer pin code
   $('#customerPinCode').on('input', function() {
     this.value = this.value.replace(/\D/g, '').substring(0, 6);
   });
 
-  // Submit new customer form with validation
   $('#customerForm').submit(function(e) {
     e.preventDefault();
     
@@ -346,7 +453,6 @@ $admin_id = $_SESSION['admin_id'];
     });
   });
 
-  // Add product row
   $('#addRowBtn').click(function() {
     let row = `
       <tr>
@@ -364,17 +470,14 @@ $admin_id = $_SESSION['admin_id'];
     $('#saleItemsTable tbody').append(row);
   });
 
-  // Auto-fill price when product selected
   $(document).on('change', '.productSelect', function() {
     const price = $(this).find(':selected').data('price') || 0;
     $(this).closest('tr').find('.priceInput').val(price);
     updateTotals();
   });
 
-  // When qty or price changes
   $(document).on('input', '.qtyInput, .priceInput', updateTotals);
 
-  // Remove row
   $(document).on('click', '.removeRow', function() {
     $(this).closest('tr').remove();
     updateTotals();
@@ -392,7 +495,6 @@ $admin_id = $_SESSION['admin_id'];
     $('#grandTotal').text(grandTotal.toFixed(2));
   }
 
-  // Submit sale form via AJAX
   $('#saleForm').submit(function(e) {
     e.preventDefault();
     $.ajax({
