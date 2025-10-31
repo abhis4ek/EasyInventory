@@ -570,6 +570,7 @@ $admin_id = $_SESSION['admin_id'];
     $('#grandTotal').text(grandTotal.toFixed(2));
   }
 
+  // ⭐ THIS IS THE CHANGED PART ⭐
   $('#purchaseForm').submit(function(e) {
     e.preventDefault();
     $.ajax({
@@ -579,6 +580,15 @@ $admin_id = $_SESSION['admin_id'];
       success: function(res) {
         if (res.trim() === 'success') {
           alert('Purchase added successfully!');
+          
+          // Send message to parent window to refresh dashboard
+          try {
+            window.parent.postMessage('refreshDashboard', '*');
+            console.log('Refresh message sent to dashboard');
+          } catch(e) {
+            console.log('Could not send message to parent:', e);
+          }
+          
           location.reload();
         } else {
           alert('Error: ' + res);

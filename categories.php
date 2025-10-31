@@ -35,26 +35,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['name'])) {
     }
 }
 
-// Handle delete
+// Handle delete - WITH SAFETY CHECK
 if (isset($_GET['delete'])) {
     $id = (int)$_GET['delete'];
     
-    $stmt = $conn->prepare('DELETE FROM categories WHERE id = ? AND admin_id = ?');
-    $stmt->bind_param('ii', $id, $admin_id);
+    // ✅ STEP 1: Check if category is being used by any products
+    $check = $conn->prepare('SELECT COUNT(*) as product_count FROM products WHERE category_id = ? AND admin_id = ?');
+    $check->bind_param('ii', $id, $admin_id);
+    $check->execute();
+    $result = $check->get_result()->fetch_assoc();
+    $productCount = $result['product_count'];
+    $check->close();
     
-    if ($stmt->execute()) {
-        $stmt->close();
-        header('Location: categories.php');
-        exit;
+    // ✅ STEP 2: If products exist, prevent deletion with friendly message
+    if ($productCount > 0) {
+        $message = 'Error: Cannot delete this category because ' . $productCount . ' product(s) are using it. Please reassign or delete those products first.';
+        // Don't try to delete, just show error
     } else {
-        $message = 'Error: Cannot delete category. It may be in use by products.';
-        $stmt->close();
+        // ✅ STEP 3: Safe to delete - no products using this category
+        $stmt = $conn->prepare('DELETE FROM categories WHERE id = ? AND admin_id = ?');
+        $stmt->bind_param('ii', $id, $admin_id);
+        
+        if ($stmt->execute()) {
+            $stmt->close();
+            header('Location: categories.php?success=deleted');
+            exit;
+        } else {
+            $message = 'Error: Unable to delete category.';
+            $stmt->close();
+        }
     }
 }
 
 // Success message after redirect
 if (isset($_GET['success'])) {
-    $message = 'Category added successfully!';
+    if ($_GET['success'] === 'deleted') {
+        $message = 'Category deleted successfully!';
+    } else {
+        $message = 'Category added successfully!';
+    }
 }
 
 $stmt = $conn->prepare('SELECT * FROM categories WHERE admin_id = ? ORDER BY id');
@@ -413,7 +432,7 @@ $res = $stmt->get_result();
                             </a>
                             <a href="categories.php?delete=<?= $r['id'] ?>" 
                                class="action-link"
-                               onclick="return confirm('Delete this category? Note: Cannot delete if products exist in this category.')">
+                               onclick="return confirm('Are you sure you want to delete this category?\n\nNote: If products are using this category, deletion will be prevented.')">
                                Delete
                             </a>
                         </td>

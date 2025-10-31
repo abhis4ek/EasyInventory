@@ -830,5 +830,21 @@ $profit_loss = $total_sales_amount - $total_purchases_amount;
         });
     }
     </script>
+     <script>
+// Listen for messages from child frames
+window.addEventListener('message', function(event) {
+  if (event.data === 'refreshDashboard') {
+    location.reload();
+  }
+});
+
+// Alternative: Auto-refresh every 30 seconds (optional)
+// Uncomment if you want automatic periodic refresh
+/*
+setInterval(function() {
+  location.reload();
+}, 30000); // 30 seconds
+*/
+</script>
 </body>
 </html>
