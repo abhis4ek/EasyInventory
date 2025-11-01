@@ -9,7 +9,7 @@ require 'db.php';
 $admin_id = $_SESSION['admin_id'];
 $fullname = $_SESSION['fullname'] ?? 'Admin User';
 
-// Total products (filtered by user)
+// Total products
 $sql_total = "SELECT COUNT(DISTINCT id) AS total FROM products WHERE admin_id = ?";
 $stmt = $conn->prepare($sql_total);
 $stmt->bind_param('i', $admin_id);
@@ -63,6 +63,14 @@ $stmt->close();
 
 // Calculate Profit/Loss
 $profit_loss = $total_sales_amount - $total_purchases_amount;
+
+// Get total inventory value
+$sql_inventory = "SELECT COALESCE(SUM(cost_price * stock), 0) AS inventory_value FROM products WHERE admin_id = ?";
+$stmt = $conn->prepare($sql_inventory);
+$stmt->bind_param('i', $admin_id);
+$stmt->execute();
+$inventory_value = $stmt->get_result()->fetch_assoc()['inventory_value'];
+$stmt->close();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -169,10 +177,11 @@ $profit_loss = $total_sales_amount - $total_purchases_amount;
         .bg-danger { background-color: #ffebee; color: #d32f2f; }
         .bg-purple { background-color: #f3e5f5; color: #7b1fa2; }
         .bg-teal { background-color: #e0f2f1; color: #00796b; }
+        .bg-info { background-color: #e1f5fe; color: #0277bd; }
         
         .profit-text { color: #388e3c; }
         .loss-text { color: #d32f2f; }
-        
+
         .content-section {
             background: white;
             border-radius: 10px;
@@ -180,84 +189,66 @@ $profit_loss = $total_sales_amount - $total_purchases_amount;
             margin-bottom: 30px;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
         }
-        
+
         .section-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
         }
-        
+
         .section-title {
             font-size: 1.3rem;
             color: #2c3e50;
         }
-        
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s;
-        }
-        
-        .btn-primary {
-            background-color: #3498db;
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            background-color: #2980b9;
-        }
-        
+
         .table-responsive {
             overflow-x: auto;
         }
-        
+
         table {
             width: 100%;
             border-collapse: collapse;
         }
-        
+
         table th, table td {
             padding: 15px;
             text-align: left;
             border-bottom: 1px solid #e0e6ed;
         }
-        
+
         table th {
             background-color: #f8f9fa;
             font-weight: 600;
             color: #2c3e50;
         }
-        
+
         table tr:hover {
             background-color: #f8f9fa;
         }
-        
+
         .status {
             padding: 5px 10px;
             border-radius: 20px;
             font-size: 0.8rem;
             font-weight: 600;
         }
-        
+
         .status-instock {
             background-color: #e8f5e9;
             color: #388e3c;
         }
-        
+
         .status-lowstock {
             background-color: #fff8e1;
             color: #f57c00;
         }
-        
+
         .status-outstock {
             background-color: #ffebee;
             color: #d32f2f;
         }
-        
+
         .action-btn {
             border: none;
             background: none;
@@ -266,107 +257,27 @@ $profit_loss = $total_sales_amount - $total_purchases_amount;
             font-size: 1.1rem;
             transition: transform 0.2s;
         }
-        
+
         .action-btn:hover {
             transform: scale(1.2);
         }
-        
+
         .edit-btn { color: #3498db; }
         .delete-btn { color: #e74c3c; }
-        
-        .form-group {
-            margin-bottom: 20px;
-        }
-        
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #2c3e50;
-        }
-        
-        .form-control {
-            width: 100%;
-            padding: 12px 15px;
-            border: 1px solid #e0e6ed;
-            border-radius: 5px;
-            font-size: 1rem;
-        }
-        
-        .form-control:focus {
-            outline: none;
-            border-color: #3498db;
-        }
-        
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .modal-content {
-            background: white;
-            border-radius: 10px;
-            width: 500px;
-            max-width: 90%;
-            padding: 25px;
-            box-shadow: 0 5px 30px rgba(0, 0, 0, 0.2);
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-        
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #e0e6ed;
-        }
-        
-        .modal-title {
-            font-size: 1.3rem;
-            color: #2c3e50;
-        }
-        
-        .close-btn {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: #7f8c8d;
-        }
-        
-        .close-btn:hover {
-            color: #e74c3c;
-        }
-        
-        .modal-footer {
-            margin-top: 20px;
-            text-align: right;
-        }
-        
-        .btn-secondary {
-            background-color: #95a5a6;
+
+        .badge-mrp {
+            background: #ff9800;
             color: white;
-            margin-right: 10px;
-        }
-        
-        .btn-secondary:hover {
-            background-color: #7f8c8d;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-left: 8px;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h2 class="page-title">Dashboard</h2>
+        <h2 class="page-title">Dashboard Overview</h2>
         <div class="user-info">
             <img src="https://ui-avatars.com/api/?name=<?= urlencode($fullname) ?>&background=3498db&color=fff" alt="User">
             <span><?= htmlspecialchars($fullname) ?></span>
@@ -411,6 +322,17 @@ $profit_loss = $total_sales_amount - $total_purchases_amount;
             <div class="card-info">
                 <h3><?php echo $out_of_stock; ?></h3>
                 <p>Out of Stock</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-icon bg-info">
+                <i class="fas fa-warehouse"></i>
+            </div>
+            <div class="card-info">
+                <h3>₹<?php echo number_format($inventory_value, 2); ?></h3>
+                <p>Inventory Value</p>
+                <small>Total stock at cost price</small>
             </div>
         </div>
 
@@ -481,8 +403,7 @@ $profit_loss = $total_sales_amount - $total_purchases_amount;
 
     <div class="content-section">
         <div class="section-header">
-            <h3 class="section-title">Products</h3>
-            <button class="btn btn-primary" id="addProductBtn">Add Product</button>
+            <h3 class="section-title">Recent Products</h3>
         </div>
         <div class="table-responsive">
             <table>
@@ -490,7 +411,6 @@ $profit_loss = $total_sales_amount - $total_purchases_amount;
                     <tr>
                         <th>Product Name</th>
                         <th>Category</th>
-                        <th>Price</th>
                         <th>Stock</th>
                         <th>Status</th>
                         <th>Actions</th>
@@ -499,7 +419,7 @@ $profit_loss = $total_sales_amount - $total_purchases_amount;
                 <tbody>
                 <?php
                 $stmt = $conn->prepare("
-                    SELECT p.id, p.name, p.price, p.stock, p.description, p.category_id, c.name AS category_name
+                    SELECT p.id, p.name, p.has_mrp, p.stock, c.name AS category_name
                     FROM products p
                     JOIN categories c ON p.category_id = c.id
                     WHERE p.admin_id = ?
@@ -509,34 +429,34 @@ $profit_loss = $total_sales_amount - $total_purchases_amount;
                             WHEN p.stock > 0 THEN 2
                             ELSE 3
                         END, p.name
+                    LIMIT 10
                 ");
                 $stmt->bind_param('i', $admin_id);
                 $stmt->execute();
                 $result = $stmt->get_result();
 
                 if ($result->num_rows > 0) {
-                    while ($product = $result->fetch_assoc()) { ?>
+                    while ($product = $result->fetch_assoc()) { 
+                        $status_class = $product['stock'] > 20 ? 'instock' : ($product['stock'] > 0 ? 'lowstock' : 'outstock');
+                        $status_text = $product['stock'] > 20 ? 'In Stock' : ($product['stock'] > 0 ? 'Low Stock' : 'Out of Stock');
+                        ?>
                     <tr>
-                        <td><?php echo htmlspecialchars($product['name']); ?></td>
+                        <td>
+                            <?php echo htmlspecialchars($product['name']); ?>
+                            <?php if($product['has_mrp']): ?>
+                                <span class="badge-mrp">MRP</span>
+                            <?php endif; ?>
+                        </td>
                         <td><?php echo htmlspecialchars($product['category_name']); ?></td>
-                        <td>₹<?php echo number_format($product['price'], 2); ?></td>
                         <td><?php echo $product['stock']; ?></td>
                         <td>
-                            <span class="status <?php
-                                if($product['stock'] > 20) echo 'status-instock';
-                                elseif($product['stock'] > 0) echo 'status-lowstock';
-                                else echo 'status-outstock';
-                            ?>">
-                            <?php
-                                if($product['stock'] > 20) echo 'In Stock';
-                                elseif($product['stock'] > 0) echo 'Low Stock';
-                                else echo 'Out of Stock';
-                            ?>
+                            <span class="status status-<?php echo $status_class; ?>">
+                                <?php echo $status_text; ?>
                             </span>
                         </td>
                         <td>
                             <button class="action-btn edit-btn" 
-                                onclick='openEditModal(<?php echo json_encode($product); ?>)'>
+                                onclick="goToInventory(<?php echo $product['id']; ?>)">
                                 <i class="fas fa-edit"></i>
                             </button>
                             <button class="action-btn delete-btn" onclick="deleteProduct(<?php echo $product['id']; ?>)">
@@ -546,7 +466,7 @@ $profit_loss = $total_sales_amount - $total_purchases_amount;
                     </tr>
                     <?php }
                 } else {
-                    echo "<tr><td colspan='6' style='text-align:center;'>No products found</td></tr>";
+                    echo "<tr><td colspan='5' style='text-align:center;'>No products found</td></tr>";
                 }
                 $stmt->close();
                 ?>
@@ -555,296 +475,36 @@ $profit_loss = $total_sales_amount - $total_purchases_amount;
         </div>
     </div>
 
-    <!-- Add Product Modal -->
-    <div id="addProductModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">Add New Product</h3>
-                <button class="close-btn" id="closeModalBtn">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="productName">Product Name *</label>
-                    <input type="text" id="productName" class="form-control" placeholder="Enter product name">
-                </div>
-                <div class="form-group">
-                    <label for="categorySelect">Category *</label>
-                    <select id="categorySelect" class="form-control">
-                        <option value="">Select category</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="productPrice">Price *</label>
-                    <input type="number" id="productPrice" class="form-control" placeholder="Enter price" step="0.01" min="0">
-                </div>
-                <div class="form-group">
-                    <label for="productStock">Stock *</label>
-                    <input type="number" id="productStock" class="form-control" placeholder="Enter stock quantity" min="0">
-                </div>
-                <div class="form-group">
-                    <label for="productDescription">Description</label>
-                    <textarea id="productDescription" class="form-control" rows="3" placeholder="Enter product description"></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
-                <button class="btn btn-primary" id="saveProductBtn">Save Product</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Edit Product Modal -->
-    <div id="editProductModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">Edit Product</h3>
-                <button class="close-btn" id="closeEditModalBtn">&times;</button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="editProductId">
-                <div class="form-group">
-                    <label for="editProductName">Product Name *</label>
-                    <input type="text" id="editProductName" class="form-control" placeholder="Enter product name">
-                </div>
-                <div class="form-group">
-                    <label for="editCategorySelect">Category *</label>
-                    <select id="editCategorySelect" class="form-control">
-                        <option value="">Select category</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="editProductPrice">Price *</label>
-                    <input type="number" id="editProductPrice" class="form-control" placeholder="Enter price" step="0.01" min="0">
-                </div>
-                <div class="form-group">
-                    <label for="editProductStock">Stock *</label>
-                    <input type="number" id="editProductStock" class="form-control" placeholder="Enter stock quantity" min="0">
-                </div>
-                <div class="form-group">
-                    <label for="editProductDescription">Description</label>
-                    <textarea id="editProductDescription" class="form-control" rows="3" placeholder="Enter product description"></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" id="cancelEditBtn">Cancel</button>
-                <button class="btn btn-primary" id="saveEditProductBtn">Update Product</button>
-            </div>
-        </div>
-    </div>
-
     <script>
-    const modal = document.getElementById('addProductModal');
-    const addProductBtn = document.getElementById('addProductBtn');
-    const closeBtn = document.getElementById('closeModalBtn');
-    const cancelBtn = document.getElementById('cancelBtn');
-    const saveProductBtn = document.getElementById('saveProductBtn');
+        function goToInventory(productId) {
+            parent.loadPage('inventory.php');
+        }
 
-    function loadCategories() {
-        fetch('get_categories.php')
-        .then(response => response.json())
-        .then(categories => {
-            const categorySelect = document.getElementById('categorySelect');
-            categorySelect.innerHTML = '<option value="">Select category</option>';
-            categories.forEach(cat => {
-                const option = document.createElement('option');
-                option.value = cat.id;
-                option.textContent = cat.name;
-                categorySelect.appendChild(option);
+        function deleteProduct(id) {
+            if (!confirm("Are you sure you want to delete this product?")) {
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('id', id);
+
+            fetch('delete_product.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(result => {
+                if (result.trim() === 'success') {
+                    alert('Product deleted successfully!');
+                    location.reload();
+                } else {
+                    alert('Error deleting product: ' + result);
+                }
+            })
+            .catch(error => {
+                alert('Fetch error: ' + error);
             });
-        })
-        .catch(error => {
-            console.error("Error loading categories:", error);
-            document.getElementById('categorySelect').innerHTML = '<option value="">Error loading categories</option>';
-        });
-    }
-
-    addProductBtn.addEventListener('click', () => {
-        modal.style.display = 'flex';
-        loadCategories();
-    });
-
-    closeBtn.addEventListener('click', () => {
-        modal.style.display = 'none';
-    });
-
-    cancelBtn.addEventListener('click', () => {
-        modal.style.display = 'none';
-    });
-
-    window.addEventListener('click', (e) => {
-        if (e.target === modal) modal.style.display = 'none';
-    });
-
-    saveProductBtn.addEventListener('click', () => {
-        const name = document.getElementById('productName').value.trim();
-        const category_id = document.getElementById('categorySelect').value;
-        const price = document.getElementById('productPrice').value.trim();
-        const stock = document.getElementById('productStock').value.trim();
-        const description = document.getElementById('productDescription').value.trim();
-
-        if (!name || !category_id || !price || !stock) {
-            alert('Please fill in all required fields.');
-            return;
         }
-
-        const formData = new FormData();
-        formData.append('name', name);
-        formData.append('category_id', category_id);
-        formData.append('price', price);
-        formData.append('stock', stock);
-        formData.append('description', description);
-
-        fetch('add_product.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.text())
-        .then(result => {
-            if (result.trim() === 'success') {
-                alert('Product added successfully!');
-                modal.style.display = 'none';
-                document.getElementById('productName').value = '';
-                document.getElementById('productPrice').value = '';
-                document.getElementById('productStock').value = '';
-                document.getElementById('productDescription').value = '';
-                location.reload();
-            } else {
-                alert('Error adding product: ' + result);
-            }
-        })
-        .catch(error => {
-            alert('Fetch error: ' + error);
-        });
-    });
-
-    const editModal = document.getElementById('editProductModal');
-    const closeEditBtn = document.getElementById('closeEditModalBtn');
-    const cancelEditBtn = document.getElementById('cancelEditBtn');
-    const saveEditProductBtn = document.getElementById('saveEditProductBtn');
-
-    function loadEditCategories(selectedId = null) {
-        fetch('get_categories.php')
-        .then(response => response.json())
-        .then(categories => {
-            const categorySelect = document.getElementById('editCategorySelect');
-            categorySelect.innerHTML = '<option value="">Select category</option>';
-            categories.forEach(cat => {
-                const option = document.createElement('option');
-                option.value = cat.id;
-                option.textContent = cat.name;
-                if (cat.id == selectedId) option.selected = true;
-                categorySelect.appendChild(option);
-            });
-        })
-        .catch(error => {
-            console.error("Error loading categories:", error);
-            document.getElementById('editCategorySelect').innerHTML = '<option value="">Error loading categories</option>';
-        });
-    }
-
-    function openEditModal(product) {
-        editModal.style.display = 'flex';
-        document.getElementById('editProductId').value = product.id;
-        document.getElementById('editProductName').value = product.name;
-        document.getElementById('editProductPrice').value = product.price;
-        document.getElementById('editProductStock').value = product.stock;
-        document.getElementById('editProductDescription').value = product.description;
-        loadEditCategories(product.category_id);
-    }
-
-    closeEditBtn.addEventListener('click', () => { 
-        editModal.style.display = 'none'; 
-    });
-
-    cancelEditBtn.addEventListener('click', () => { 
-        editModal.style.display = 'none'; 
-    });
-
-    window.addEventListener('click', (e) => { 
-        if (e.target === editModal) editModal.style.display = 'none'; 
-    });
-
-    saveEditProductBtn.addEventListener('click', () => {
-        const id = document.getElementById('editProductId').value;
-        const name = document.getElementById('editProductName').value.trim();
-        const category_id = document.getElementById('editCategorySelect').value;
-        const price = document.getElementById('editProductPrice').value.trim();
-        const stock = document.getElementById('editProductStock').value.trim();
-        const description = document.getElementById('editProductDescription').value.trim();
-
-        if (!name || !category_id || !price || !stock) {
-            alert('Please fill in all required fields.');
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('id', id);
-        formData.append('name', name);
-        formData.append('category_id', category_id);
-        formData.append('price', price);
-        formData.append('stock', stock);
-        formData.append('description', description);
-
-        fetch('edit_product.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.text())
-        .then(result => {
-            if (result.trim() === 'success') {
-                alert('Product updated successfully!');
-                editModal.style.display = 'none';
-                location.reload();
-            } else {
-                alert('Error updating product: ' + result);
-            }
-        })
-        .catch(error => { 
-            alert('Fetch error: ' + error); 
-        });
-    });
-
-    function deleteProduct(id) {
-        if (!confirm("Are you sure you want to delete this product?")) {
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('id', id);
-
-        fetch('delete_product.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.text())
-        .then(result => {
-            if (result.trim() === 'success') {
-                alert('Product deleted successfully!');
-                location.reload();
-            } else {
-                alert('Error deleting product: ' + result);
-            }
-        })
-        .catch(error => {
-            alert('Fetch error: ' + error);
-        });
-    }
     </script>
-     <script>
-// Listen for messages from child frames
-window.addEventListener('message', function(event) {
-  if (event.data === 'refreshDashboard') {
-    location.reload();
-  }
-});
-
-// Alternative: Auto-refresh every 30 seconds (optional)
-// Uncomment if you want automatic periodic refresh
-/*
-setInterval(function() {
-  location.reload();
-}, 30000); // 30 seconds
-*/
-</script>
 </body>
 </html>

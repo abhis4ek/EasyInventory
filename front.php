@@ -8,9 +8,6 @@ require 'db.php';
 
 $admin_id = $_SESSION['admin_id'];
 $fullname = $_SESSION['fullname'] ?? 'Admin User';
-
-// All your existing PHP queries here...
-// (Keep all the existing dashboard stat queries)
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -133,8 +130,8 @@ $fullname = $_SESSION['fullname'] ?? 'Admin User';
                     </a>
                 </li>
                 <li class="menu-item">
-                    <a onclick="loadPage('dashboard.php')" class="menu-link" id="nav-products">
-                        <i class="fas fa-box"></i> Products
+                    <a onclick="loadPage('inventory.php')" class="menu-link" id="nav-inventory">
+                        <i class="fas fa-box"></i> Inventory
                     </a>
                 </li>
                 <li class="menu-item">
