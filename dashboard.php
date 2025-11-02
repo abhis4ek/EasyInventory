@@ -266,12 +266,13 @@ $stmt->close();
         .delete-btn { color: #e74c3c; }
 
         .badge-mrp {
-            background: #ff9800;
-            color: white;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            margin-left: 8px;
+          background: #ff9800;
+          color: white;
+          padding: 2px 8px;
+          border-radius: 4px;
+          font-size: 0.75rem;
+          margin-left: 8px;
+          float: right;  
         }
     </style>
 </head>

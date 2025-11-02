@@ -79,6 +79,7 @@ $fullname = $_SESSION['fullname'] ?? 'Admin User';
             border-radius: 5px;
             transition: all 0.3s;
             cursor: pointer;
+            position: relative;
         }
         
         .menu-link:hover, .menu-link.active {
@@ -88,6 +89,31 @@ $fullname = $_SESSION['fullname'] ?? 'Admin User';
         .menu-link i {
             margin-right: 10px;
             font-size: 1.2rem;
+        }
+        
+        .notification-badge {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #e74c3c;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 10px;
+            min-width: 20px;
+            text-align: center;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                transform: translateY(-50%) scale(1);
+            }
+            50% {
+                transform: translateY(-50%) scale(1.1);
+            }
         }
         
         .main-content {
@@ -132,6 +158,12 @@ $fullname = $_SESSION['fullname'] ?? 'Admin User';
                 <li class="menu-item">
                     <a onclick="loadPage('inventory.php')" class="menu-link" id="nav-inventory">
                         <i class="fas fa-box"></i> Inventory
+                    </a>
+                </li>
+                <li class="menu-item">
+                    <a onclick="loadPage('low_stock_alerts.php')" class="menu-link" id="nav-alerts">
+                        <i class="fas fa-bell"></i> Stock Alerts
+                        <span class="notification-badge" id="stockAlertBadge" style="display: none;">0</span>
                     </a>
                 </li>
                 <li class="menu-item">
@@ -187,6 +219,35 @@ $fullname = $_SESSION['fullname'] ?? 'Admin User';
             });
             event.target.closest('.menu-link').classList.add('active');
         }
+
+        // Function to update stock alert badge
+        function updateStockAlerts() {
+            fetch('get_low_stock_count.php')
+                .then(response => response.json())
+                .then(data => {
+                    const badge = document.getElementById('stockAlertBadge');
+                    if (data.count > 0) {
+                        badge.textContent = data.count;
+                        badge.style.display = 'block';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                })
+                .catch(error => console.error('Error fetching stock alerts:', error));
+        }
+
+        // Update stock alerts on page load
+        updateStockAlerts();
+
+        // Update stock alerts every 30 seconds
+        setInterval(updateStockAlerts, 30000);
+
+        // Listen for messages from dashboard to refresh alerts
+        window.addEventListener('message', function(event) {
+            if (event.data === 'refreshDashboard' || event.data === 'refreshAlerts') {
+                updateStockAlerts();
+            }
+        });
     </script>
 </body>
 </html>

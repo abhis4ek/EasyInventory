@@ -292,6 +292,7 @@ $fullname = $_SESSION['fullname'] ?? 'Admin User';
             border-radius: 4px;
             font-size: 0.75rem;
             margin-left: 8px;
+            float: right;  
         }
 
         .search-filter {

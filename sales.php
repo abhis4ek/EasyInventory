@@ -70,7 +70,7 @@ $admin_id = $_SESSION['admin_id'];
           <th>Date</th>
           <th>Customer</th>
           <th>Total</th>
-          <th style="width: 200px;">Actions</th>
+          <th style="width: 250px;">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -111,6 +111,9 @@ $admin_id = $_SESSION['admin_id'];
           <td><?= htmlspecialchars($row['customer_name'] ?? 'Walk-in Customer') ?></td>
           <td><strong>₹<?= number_format($row['total_amount'], 2) ?></strong></td>
           <td>
+            <button class="btn btn-sm btn-success action-btn" onclick="event.stopPropagation(); window.open('sale_invoice.php?id=<?= $sale_id ?>', '_blank')">
+              <i class="fas fa-file-invoice"></i> Invoice
+            </button>
             <button class="btn btn-sm btn-danger action-btn" onclick="event.stopPropagation(); deleteSale(<?= $sale_id ?>)">
               <i class="fas fa-trash"></i> Delete
             </button>
@@ -459,7 +462,7 @@ $admin_id = $_SESSION['admin_id'];
         <td>
           <select class="form-select productSelect" name="product_id[]" required>
             <option value="">Select</option>
-            ${products.map(p => `<option value="${p.id}" data-price="${p.price}">${p.name}</option>`).join('')}
+            ${products.map(p => `<option value="${p.id}" data-price="${p.selling_price}">${p.name}</option>`).join('')}
           </select>
         </td>
         <td><input type="number" name="quantity[]" class="form-control qtyInput" min="1" value="1" required></td>

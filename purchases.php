@@ -49,6 +49,41 @@ $admin_id = $_SESSION['admin_id'];
     .expanded .expand-icon {
       transform: rotate(90deg);
     }
+    .pricing-section {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 15px 0;
+    }
+    .pricing-section h6 {
+      font-size: 1rem;
+      margin-bottom: 15px;
+      color: #2c3e50;
+    }
+    .price-display {
+      background: white;
+      padding: 15px;
+      border-radius: 6px;
+      margin-top: 15px;
+      border-left: 4px solid #27ae60;
+    }
+    .price-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .price-row.total {
+      padding-top: 8px;
+      border-top: 2px solid #eee;
+    }
+    .badge-mrp {
+      background: #ff9800;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      margin-left: 8px;
+    }
   </style>
 </head>
 <body class="p-3">
@@ -70,7 +105,7 @@ $admin_id = $_SESSION['admin_id'];
           <th>Date</th>
           <th>Supplier</th>
           <th>Total</th>
-          <th style="width: 200px;">Actions</th>
+          <th style="width: 250px;">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -88,7 +123,6 @@ $admin_id = $_SESSION['admin_id'];
           while($row = $res->fetch_assoc()):
             $purchase_id = $row['id'];
             
-            // Fetch items for this purchase
             $items_stmt = $conn->prepare("SELECT pi.*, pr.name as product_name
                     FROM purchase_items pi
                     JOIN products pr ON pi.product_id = pr.id
@@ -111,6 +145,9 @@ $admin_id = $_SESSION['admin_id'];
           <td><?= htmlspecialchars($row['supplier_name'] ?? 'N/A') ?></td>
           <td><strong>₹<?= number_format($row['total_amount'], 2) ?></strong></td>
           <td>
+            <button class="btn btn-sm btn-primary action-btn" onclick="event.stopPropagation(); window.open('purchase_invoice.php?id=<?= $purchase_id ?>', '_blank')">
+              <i class="fas fa-file-invoice"></i> Invoice
+            </button>
             <button class="btn btn-sm btn-danger action-btn" onclick="event.stopPropagation(); deletePurchase(<?= $purchase_id ?>)">
               <i class="fas fa-trash"></i> Delete
             </button>
@@ -268,9 +305,9 @@ $admin_id = $_SESSION['admin_id'];
     </div>
   </div>
 
-  <!-- Add Product Modal -->
+  <!-- Add Product Modal (Enhanced like inventory.php) -->
   <div class="modal fade" id="addProductModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <form id="productForm" novalidate>
           <div class="modal-header">
@@ -280,7 +317,7 @@ $admin_id = $_SESSION['admin_id'];
           <div class="modal-body">
             <div class="mb-3">
               <label for="productName" class="form-label">Product Name <span class="text-danger">*</span></label>
-              <input type="text" id="productName" name="name" class="form-control" required>
+              <input type="text" id="productName" name="name" class="form-control" placeholder="Enter product name" required>
             </div>
             <div class="mb-3">
               <label for="productCategory" class="form-label">Category <span class="text-danger">*</span></label>
@@ -291,17 +328,84 @@ $admin_id = $_SESSION['admin_id'];
                 <button type="button" class="btn btn-outline-secondary" id="addCategoryBtn">+ New</button>
               </div>
             </div>
-            <div class="mb-3">
-              <label for="productPrice" class="form-label">Price <span class="text-danger">*</span></label>
-              <input type="number" id="productPrice" name="price" class="form-control" step="0.01" min="0" required>
+            
+            <div class="pricing-section">
+              <h6>💰 Pricing Setup</h6>
+              
+              <div class="mb-3">
+                <label for="productCostPrice" class="form-label">Cost Price (What You Paid) <span class="text-danger">*</span></label>
+                <input type="number" id="productCostPrice" name="cost_price" class="form-control" placeholder="₹100" step="0.01" min="0" required>
+                <small class="text-muted">Amount paid to supplier (GST inclusive)</small>
+              </div>
+              
+              <div class="mb-3" style="background: white; padding: 12px; border-radius: 6px;">
+                <label style="display: flex; align-items: center; cursor: pointer; margin: 0;">
+                  <input type="checkbox" id="hasMrpCheckbox" name="has_mrp" style="width: 18px; height: 18px; margin-right: 10px;">
+                  <span style="font-weight: 600;">This product has MRP printed on package</span>
+                </label>
+                <small class="text-muted" style="margin-left: 28px; display: block; margin-top: 5px;">
+                  Check this for packaged goods (chips, biscuits, bottles, etc.)
+                </small>
+              </div>
+              
+              <div class="mb-3" id="mrpInputGroup" style="display: none;">
+                <label for="productMrp" class="form-label">Maximum Retail Price (MRP) <span class="text-danger">*</span></label>
+                <input type="number" id="productMrp" name="mrp" class="form-control" placeholder="₹120" step="0.01" min="0">
+                <small class="text-muted">Price printed on the package</small>
+              </div>
+              
+              <div class="mb-3">
+                <label for="productSellingPrice" class="form-label">Your Selling Price <span class="text-danger">*</span></label>
+                <input type="number" id="productSellingPrice" name="selling_price" class="form-control" placeholder="₹110" step="0.01" min="0" required>
+                <small class="text-muted" id="sellingPriceHint">What you charge customers</small>
+              </div>
+              
+              <div style="text-align: center; margin: 10px 0; color: #999; font-weight: 600;">OR</div>
+              
+              <div class="mb-3">
+                <label for="productProfitMargin" class="form-label">Profit Margin (Optional)</label>
+                <input type="number" id="productProfitMargin" name="profit_margin" class="form-control" placeholder="₹10" step="0.01" min="0">
+                <small class="text-muted">Your profit per unit (auto-calculates selling price)</small>
+              </div>
+              
+              <div class="price-display">
+                <div class="price-row">
+                  <span style="color: #666;">Cost Price:</span>
+                  <strong id="displayCostPrice" style="color: #2c3e50;">₹0.00</strong>
+                </div>
+                <div id="displayMrpRow" class="price-row" style="display: none;">
+                  <span style="color: #666;">MRP (Max):</span>
+                  <strong id="displayMrp" style="color: #e67e22;">₹0.00</strong>
+                </div>
+                <div class="price-row">
+                  <span style="color: #666;">Profit:</span>
+                  <strong id="displayProfit" style="color: #3498db;">₹0.00</strong>
+                </div>
+                <div class="price-row total">
+                  <span style="font-weight: 600; color: #2c3e50;">Selling Price:</span>
+                  <strong id="displaySellingPrice" style="color: #27ae60; font-size: 1.3rem;">₹0.00</strong>
+                </div>
+                <div id="mrpWarning" style="display: none; color: #e74c3c; font-size: 0.85rem; margin-top: 8px; font-weight: 600;">
+                  ⚠️ Warning: Selling price exceeds MRP!
+                </div>
+              </div>
             </div>
+            
             <div class="mb-3">
-              <label for="productStock" class="form-label">Initial Stock</label>
-              <input type="number" id="productStock" name="stock" class="form-control" min="0" value="0">
+              <label for="productStock" class="form-label">Initial Stock <span class="text-danger">*</span></label>
+              <input type="number" id="productStock" name="stock" class="form-control" placeholder="Enter stock quantity" min="0" value="0" required>
             </div>
+            
+            <div class="mb-3">
+              <label for="productSupplier" class="form-label">Supplier (Optional)</label>
+              <select id="productSupplier" name="supplier_id" class="form-select">
+                <option value="">-- Select Supplier --</option>
+              </select>
+            </div>
+            
             <div class="mb-3">
               <label for="productDescription" class="form-label">Description</label>
-              <textarea id="productDescription" name="description" class="form-control" rows="2"></textarea>
+              <textarea id="productDescription" name="description" class="form-control" rows="2" placeholder="Enter product description"></textarea>
             </div>
           </div>
           <div class="modal-footer">
@@ -353,12 +457,10 @@ $admin_id = $_SESSION['admin_id'];
   let addSupplierModal, addPurchaseModal, addProductModal, addCategoryModal;
   let currentProductRow = null;
 
-  // Validation patterns
   const phonePattern = /^[6-9]\d{9}$/;
   const pinPattern = /^\d{6}$/;
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-  // Validation function
   function validateField(field, errorElement, validationFn, errorMsg) {
     const value = field.value.trim();
     const isValid = validationFn(value);
@@ -377,7 +479,6 @@ $admin_id = $_SESSION['admin_id'];
     return isValid;
   }
 
-  // Toggle details row
   function toggleDetails(id) {
     const detailsRow = document.getElementById('details-' + id);
     const icon = document.getElementById('icon-' + id);
@@ -392,7 +493,6 @@ $admin_id = $_SESSION['admin_id'];
     }
   }
 
-  // Delete purchase
   function deletePurchase(id) {
     if (!confirm('Are you sure you want to delete this purchase?\n\nThis will also remove all associated items and reverse stock changes.')) {
       return;
@@ -435,7 +535,7 @@ $admin_id = $_SESSION['admin_id'];
     $.getJSON('get_suppliers.php', function(data) {
       let html = '<option value="">-- Select Supplier --</option>';
       data.forEach(s => html += `<option value="${s.id}">${s.name}</option>`);
-      $('#supplierSelect').html(html);
+      $('#supplierSelect, #productSupplier').html(html);
     });
   }
 
@@ -453,7 +553,7 @@ $admin_id = $_SESSION['admin_id'];
     });
   }
 
-  // Open Add Supplier Modal
+  // Add Supplier Modal
   $('#addSupplierBtn').click(function() {
     $('#supplierForm')[0].reset();
     $('.error-text').hide();
@@ -461,17 +561,14 @@ $admin_id = $_SESSION['admin_id'];
     addSupplierModal.show();
   });
 
-  // Real-time validation for supplier phone
   $('#supplierPhone').on('input', function() {
     this.value = this.value.replace(/\D/g, '').substring(0, 10);
   });
 
-  // Real-time validation for supplier pin code
   $('#supplierPinCode').on('input', function() {
     this.value = this.value.replace(/\D/g, '').substring(0, 6);
   });
 
-  // Submit new supplier form with validation
   $('#supplierForm').submit(function(e) {
     e.preventDefault();
     
@@ -554,7 +651,7 @@ $admin_id = $_SESSION['admin_id'];
     });
   });
 
-  // Add product row
+  // Purchase Items Management
   $('#addRowBtn').click(function() {
     let row = `
       <tr>
@@ -562,7 +659,7 @@ $admin_id = $_SESSION['admin_id'];
           <div class="input-group">
             <select class="form-select productSelect" name="product_id[]" required>
               <option value="">Select</option>
-              ${products.map(p => `<option value="${p.id}" data-price="${p.price}">${p.name}</option>`).join('')}
+              ${products.map(p => `<option value="${p.id}" data-price="${p.cost_price}">${p.name}</option>`).join('')}
             </select>
             <button type="button" class="btn btn-outline-secondary btn-sm addNewProductBtn">+ New</button>
           </div>
@@ -575,21 +672,88 @@ $admin_id = $_SESSION['admin_id'];
     $('#purchaseItemsTable tbody').append(row);
   });
 
-  // Open Add Product Modal
   $(document).on('click', '.addNewProductBtn', function() {
     currentProductRow = $(this).closest('tr');
     loadCategories();
+    loadSuppliers();
     $('#productForm')[0].reset();
+    $('.error-text').hide();
+    $('.is-invalid').removeClass('is-invalid');
+    $('#mrpInputGroup').hide();
+    $('#displayMrpRow').hide();
+    $('#hasMrpCheckbox').prop('checked', false);
+    calculateProductPricing();
     addProductModal.show();
   });
 
-  // Open Add Category Modal
+  // MRP Checkbox Logic
+  const hasMrpCheckbox = document.getElementById('hasMrpCheckbox');
+  const mrpInputGroup = document.getElementById('mrpInputGroup');
+  const displayMrpRow = document.getElementById('displayMrpRow');
+  const sellingPriceHint = document.getElementById('sellingPriceHint');
+
+  hasMrpCheckbox.addEventListener('change', function() {
+    if (this.checked) {
+      mrpInputGroup.style.display = 'block';
+      displayMrpRow.style.display = 'flex';
+      sellingPriceHint.textContent = 'Must be ≤ MRP';
+    } else {
+      mrpInputGroup.style.display = 'none';
+      displayMrpRow.style.display = 'none';
+      sellingPriceHint.textContent = 'What you charge customers';
+      document.getElementById('productMrp').value = '';
+    }
+    calculateProductPricing();
+  });
+
+  // Product Pricing Calculation
+  function calculateProductPricing() {
+    const costPrice = parseFloat(document.getElementById('productCostPrice').value) || 0;
+    const hasMrp = hasMrpCheckbox.checked;
+    const mrp = hasMrp ? (parseFloat(document.getElementById('productMrp').value) || 0) : 0;
+    const sellingPrice = parseFloat(document.getElementById('productSellingPrice').value) || 0;
+    const profitMargin = parseFloat(document.getElementById('productProfitMargin').value) || 0;
+    
+    document.getElementById('displayCostPrice').textContent = '₹' + costPrice.toFixed(2);
+    
+    if (hasMrp) {
+      document.getElementById('displayMrp').textContent = '₹' + mrp.toFixed(2);
+    }
+    
+    let finalSellingPrice = sellingPrice;
+    let finalProfit = 0;
+    
+    if (sellingPrice > 0) {
+      finalProfit = sellingPrice - costPrice;
+      document.getElementById('productProfitMargin').value = finalProfit.toFixed(2);
+    } else if (profitMargin > 0) {
+      finalSellingPrice = costPrice + profitMargin;
+      document.getElementById('productSellingPrice').value = finalSellingPrice.toFixed(2);
+      finalProfit = profitMargin;
+    }
+    
+    document.getElementById('displayProfit').textContent = '₹' + finalProfit.toFixed(2);
+    document.getElementById('displaySellingPrice').textContent = '₹' + finalSellingPrice.toFixed(2);
+    
+    const mrpWarning = document.getElementById('mrpWarning');
+    if (hasMrp && mrp > 0 && finalSellingPrice > mrp) {
+      mrpWarning.style.display = 'block';
+    } else {
+      mrpWarning.style.display = 'none';
+    }
+  }
+
+  document.getElementById('productCostPrice').addEventListener('input', calculateProductPricing);
+  document.getElementById('productMrp').addEventListener('input', calculateProductPricing);
+  document.getElementById('productSellingPrice').addEventListener('input', calculateProductPricing);
+  document.getElementById('productProfitMargin').addEventListener('input', calculateProductPricing);
+
+  // Add Category Modal
   $('#addCategoryBtn').click(function() {
     $('#categoryForm')[0].reset();
     addCategoryModal.show();
   });
 
-  // Submit new category form
   $('#categoryForm').submit(function(e) {
     e.preventDefault();
     $.ajax({
@@ -614,9 +778,39 @@ $admin_id = $_SESSION['admin_id'];
     });
   });
 
-  // Submit new product form
+  // Submit Product Form
   $('#productForm').submit(function(e) {
     e.preventDefault();
+    
+    const name = $('#productName').val().trim();
+    const category_id = $('#productCategory').val();
+    const cost_price = $('#productCostPrice').val().trim();
+    const has_mrp = $('#hasMrpCheckbox').is(':checked') ? 1 : 0;
+    const mrp = has_mrp ? $('#productMrp').val().trim() : '';
+    const selling_price = $('#productSellingPrice').val().trim();
+    const stock = $('#productStock').val().trim();
+
+    if (!name || !category_id || !cost_price || !selling_price || !stock) {
+      alert('Please fill in all required fields (Name, Category, Cost Price, Selling Price, Stock).');
+      return;
+    }
+
+    if (has_mrp && !mrp) {
+      alert('Please enter MRP for packaged product.');
+      return;
+    }
+
+    if (has_mrp && parseFloat(selling_price) > parseFloat(mrp)) {
+      if (!confirm('Warning: Selling price exceeds MRP! This may be illegal in India.\n\nDo you want to proceed anyway?')) {
+        return;
+      }
+    }
+
+    if (parseFloat(selling_price) <= parseFloat(cost_price)) {
+      alert('Selling price must be greater than cost price!');
+      return;
+    }
+
     $.ajax({
       url: 'add_product.php',
       method: 'POST',
@@ -645,7 +839,7 @@ $admin_id = $_SESSION['admin_id'];
       const currentVal = $(this).val();
       let html = '<option value="">Select</option>';
       products.forEach(p => {
-        html += `<option value="${p.id}" data-price="${p.price}">${p.name}</option>`;
+        html += `<option value="${p.id}" data-price="${p.cost_price}">${p.name}</option>`;
       });
       $(this).html(html);
       
@@ -657,7 +851,7 @@ $admin_id = $_SESSION['admin_id'];
         if (products.length > 0) {
           const lastProduct = products[products.length - 1];
           $(this).val(lastProduct.id);
-          $(this).closest('tr').find('.priceInput').val(lastProduct.price);
+          $(this).closest('tr').find('.priceInput').val(lastProduct.cost_price);
           updateTotals();
         }
       }
