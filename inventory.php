@@ -8,6 +8,70 @@ require 'db.php';
 
 $admin_id = $_SESSION['admin_id'];
 $fullname = $_SESSION['fullname'] ?? 'Admin User';
+
+// Total products
+$sql_total = "SELECT COUNT(DISTINCT id) AS total FROM products WHERE admin_id = ?";
+$stmt = $conn->prepare($sql_total);
+$stmt->bind_param('i', $admin_id);
+$stmt->execute();
+$total_products = $stmt->get_result()->fetch_assoc()['total'];
+$stmt->close();
+
+// In stock (>20)
+$sql_instock = "SELECT COUNT(DISTINCT id) AS total FROM products WHERE admin_id = ? AND stock > 20";
+$stmt = $conn->prepare($sql_instock);
+$stmt->bind_param('i', $admin_id);
+$stmt->execute();
+$in_stock = $stmt->get_result()->fetch_assoc()['total'];
+$stmt->close();
+
+// Low stock (1-20)
+$sql_lowstock = "SELECT COUNT(DISTINCT id) AS total FROM products WHERE admin_id = ? AND stock > 0 AND stock <= 20";
+$stmt = $conn->prepare($sql_lowstock);
+$stmt->bind_param('i', $admin_id);
+$stmt->execute();
+$low_stock = $stmt->get_result()->fetch_assoc()['total'];
+$stmt->close();
+
+// Out of stock (0)
+$sql_outstock = "SELECT COUNT(DISTINCT id) AS total FROM products WHERE admin_id = ? AND stock = 0";
+$stmt = $conn->prepare($sql_outstock);
+$stmt->bind_param('i', $admin_id);
+$stmt->execute();
+$out_of_stock = $stmt->get_result()->fetch_assoc()['total'];
+$stmt->close();
+
+// Total purchases
+$sql = "SELECT COUNT(*) AS total, COALESCE(SUM(total_amount), 0) AS total_amount FROM purchases WHERE admin_id = ?";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param('i', $admin_id);
+$stmt->execute();
+$r = $stmt->get_result()->fetch_assoc();
+$total_purchases = $r['total'];
+$total_purchases_amount = $r['total_amount'];
+$stmt->close();
+
+// Total sales
+$sql = "SELECT COUNT(*) AS total, COALESCE(SUM(total_amount), 0) AS total_amount FROM sales WHERE admin_id = ?";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param('i', $admin_id);
+$stmt->execute();
+$r = $stmt->get_result()->fetch_assoc();
+$total_sales = $r['total'];
+$total_sales_amount = $r['total_amount'];
+$stmt->close();
+
+// Calculate Profit/Loss
+$profit_loss = $total_sales_amount - $total_purchases_amount;
+
+// Get total inventory value
+$sql_inventory = "SELECT COALESCE(SUM(cost_price * stock), 0) AS inventory_value FROM products WHERE admin_id = ?";
+$stmt = $conn->prepare($sql_inventory);
+$stmt->bind_param('i', $admin_id);
+$stmt->execute();
+$inventory_value = $stmt->get_result()->fetch_assoc()['inventory_value'];
+$stmt->close();
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -314,14 +378,110 @@ $fullname = $_SESSION['fullname'] ?? 'Admin User';
             flex: 1;
             min-width: 250px;
         }
+
+        .dashboard-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            display: flex;
+            align-items: center;
+            transition: transform 0.3s;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            margin-right: 15px;
+        }
+        
+        .card-info h3 {
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+        
+        .card-info p {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        
+        .card-info small {
+            display: block;
+            color: #95a5a6;
+            font-size: 0.75rem;
+            margin-top: 2px;
+        }
+        
+        .bg-primary { background-color: #e3f2fd; color: #1976d2; }
+        .bg-success { background-color: #e8f5e9; color: #388e3c; }
+        .bg-warning { background-color: #fff8e1; color: #f57c00; }
+        .bg-danger { background-color: #ffebee; color: #d32f2f; }
+        .bg-purple { background-color: #f3e5f5; color: #7b1fa2; }
+        .bg-teal { background-color: #e0f2f1; color: #00796b; }
+        .bg-info { background-color: #e1f5fe; color: #0277bd; }
     </style>
 </head>
 <body>
     <div class="header">
         <h2 class="page-title">Inventory Management</h2>
-        <div class="user-info">
-            <img src="https://ui-avatars.com/api/?name=<?= urlencode($fullname) ?>&background=3498db&color=fff" alt="User">
-            <span><?= htmlspecialchars($fullname) ?></span>
+    </div>
+
+    <div class="dashboard-cards">
+        <div class="card">
+            <div class="card-icon bg-primary">
+                <i class="fas fa-box"></i>
+            </div>
+            <div class="card-info">
+                <h3><?php echo $total_products; ?></h3>
+                <p>Total Products</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-icon bg-success">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="card-info">
+                <h3><?php echo $in_stock; ?></h3>
+                <p>In Stock</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-icon bg-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div class="card-info">
+                <h3><?php echo $low_stock; ?></h3>
+                <p>Low Stock</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-icon bg-danger">
+                <i class="fas fa-times-circle"></i>
+            </div>
+            <div class="card-info">
+                <h3><?php echo $out_of_stock; ?></h3>
+                <p>Out of Stock</p>
+            </div>
         </div>
     </div>
 

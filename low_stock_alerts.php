@@ -235,28 +235,7 @@ $stmt->close();
 </head>
 <body>
     <div class="header">
-        <h2 class="page-title">📢 Stock Alerts & Notifications</h2>
-    </div>
-
-    <div class="alert-cards">
-        <div class="alert-card">
-            <h3>Low Stock Warning</h3>
-            <div class="count"><?= $low_stock->num_rows ?></div>
-            <p>Products with stock ≤ 20</p>
-        </div>
-        
-        <div class="alert-card danger">
-            <h3>Out of Stock</h3>
-            <div class="count"><?= $out_of_stock->num_rows ?></div>
-            <p>Products with zero stock</p>
-        </div>
-    </div>
-
-    <div class="info-box">
-        <p><strong>ℹ️ Stock Alert Levels:</strong></p>
-        <p>• <strong>Low Stock:</strong> When product quantity is between 1-20 units</p>
-        <p>• <strong>Out of Stock:</strong> When product quantity is 0</p>
-        <p>• <strong>Recommended Action:</strong> Reorder products before they run out completely</p>
+        <h2 class="page-title"> Stock Alerts & Notifications</h2>
     </div>
 
     <!-- Low Stock Products -->

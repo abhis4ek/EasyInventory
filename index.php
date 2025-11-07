@@ -11,7 +11,7 @@ if (isset($_SESSION['email'])) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EasyInventory</title>
+  <title>EasyInventory - Inventory Management for Small Businesses</title>
   <style>
     body {
       margin: 0;
@@ -63,7 +63,7 @@ if (isset($_SESSION['email'])) {
       background: #0073e6;
       color: white;
       border: none;
-      padding: 6px 15px;
+      padding: 8px 18px;
       border-radius: 5px;
       cursor: pointer;
       font-size: 14px;
@@ -152,13 +152,10 @@ if (isset($_SESSION['email'])) {
       transform: translateY(-5px);
       box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
       background: #e8f2f8;
-      /* background turns blue */
-
     }
 
     .feature-card:hover .feature-icon {
       color: #ffdd57;
-      /* icon changes to yellow for contrast */
     }
 
     .feature-icon {
@@ -175,34 +172,105 @@ if (isset($_SESSION['email'])) {
     }
 
     .feature-card p {
-      font-size: 19px;
+      font-size: 16px;
       color: #555;
       line-height: 1.5;
     }
 
     /* Footer */
     footer {
-      background: #111;
+      background: #1a2332;
       color: #bbb;
-      padding: 30px 20px;
-      text-align: center;
+      padding: 50px 20px 30px;
       margin-top: 40px;
     }
 
-    footer a {
+    .footer-content {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 40px;
+      margin-bottom: 30px;
+    }
+
+    .footer-section h3 {
+      color: #fff;
+      font-size: 18px;
+      margin-bottom: 15px;
+    }
+
+    .footer-section p {
+      line-height: 1.8;
+      font-size: 14px;
+    }
+
+    .footer-section ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .footer-section ul li {
+      margin-bottom: 10px;
+    }
+
+    .footer-section ul li a {
       color: #bbb;
-      margin: 0 10px;
       text-decoration: none;
       transition: color 0.3s ease;
     }
 
-    footer a:hover {
+    .footer-section ul li a:hover {
+      color: #0073e6;
+    }
+
+    .footer-bottom {
+      border-top: 1px solid #333;
+      padding-top: 20px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    .social-links {
+      display: flex;
+      gap: 15px;
+      margin-top: 15px;
+    }
+
+    .social-links a {
+      width: 40px;
+      height: 40px;
+      background: #2a3544;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #bbb;
+      text-decoration: none;
+      transition: background 0.3s ease, color 0.3s ease;
+    }
+
+    .social-links a:hover {
+      background: #0073e6;
       color: #fff;
     }
 
-    footer p {
-      margin-top: 10px;
-      font-size: 14px;
+    @media (max-width: 768px) {
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero h1 {
+        font-size: 32px;
+      }
+
+      nav {
+        padding: 15px 20px;
+      }
+
+      .nav-links {
+        gap: 10px;
+      }
     }
   </style>
 </head>
@@ -213,74 +281,107 @@ if (isset($_SESSION['email'])) {
   <nav>
     <div class="logo">Easy<span>Inventory</span></div>
     <div class="nav-links">
-      <a href="#">Home</a>
-      <a href="#features">About</a>
+      <a href="#home">Home</a>
+      <a href="#features">Features</a>
       <a href="#contact">Contact</a>
       <button class="login-btn" onclick="location.href='login.php'">Login</button>
     </div>
   </nav>
 
   <!-- Hero Section -->
-  <section class="hero">
-    <h1>Inventory management software designed for small businesses</h1>
-    <p>Manage orders. Track inventory. Handle billing.
-      One inventory management software to run all your inventory operations.</p>
-    <a href="signup.php" class="btn">Get Started</a>
-
+  <section class="hero" id="home">
+    <h1>Inventory Management Made Simple</h1>
+    <p>Manage inventory, track sales and purchases, monitor stock levels, and generate reports - all in one easy-to-use platform designed for small businesses.</p>
+    <a href="signup.php" class="btn">Get Started Free</a>
   </section>
 
   <!-- Features Section -->
   <section class="features-section" id="features">
-    <h2>Powerful Features to Streamline Your Inventory</h2>
-    <p>Designed for small businesses, our software offers everything you need</p>
+    <h2>Everything You Need to Manage Your Inventory</h2>
+    <p>Powerful features designed specifically for small business owners</p>
 
     <div class="features-grid">
       <div class="feature-card">
-        <div class="feature-icon">🔐</div>
-        <h3>User Authentication</h3>
-        <p>Secure login, role-based access control, and data protection for all users.</p>
-      </div>
-
-      <div class="feature-card">
         <div class="feature-icon">📦</div>
         <h3>Product Management</h3>
-        <p>Add, edit, and categorize products, SKUs, and detailed descriptions.</p>
+        <p>Add, edit, and organize products with categories, pricing (including MRP support), stock levels, and supplier information.</p>
       </div>
 
       <div class="feature-card">
         <div class="feature-icon">📊</div>
         <h3>Stock Tracking</h3>
-        <p>Real-time updates on stock quantity adjustments, and warehouse transfers.</p>
-      </div>
-
-      <div class="feature-card">
-        <div class="feature-icon">🔎</div>
-        <h3>Search & Filter</h3>
-        <p>Quickly find products using keyword, suppliers, or custom tags.</p>
-      </div>
-
-      <div class="feature-card">
-        <div class="feature-icon">📑</div>
-        <h3>Reports Generation</h3>
-        <p>Generate sales reports, stock movement history and custom analytics.</p>
+        <p>Real-time inventory tracking with automatic stock updates. Get instant visibility into what's in stock, low stock, or out of stock.</p>
       </div>
 
       <div class="feature-card">
         <div class="feature-icon">🔔</div>
         <h3>Low Stock Alerts</h3>
-        <p>Receive automated notifications when product quantities drop below set thresholds.</p>
+        <p>Automated notifications when inventory drops below safe levels. Never run out of stock unexpectedly again.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">💰</div>
+        <h3>Sales & Purchases</h3>
+        <p>Record sales and purchase transactions, generate invoices, and automatically update inventory levels with each transaction.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">👥</div>
+        <h3>Customer & Supplier Management</h3>
+        <p>Maintain detailed records of customers and suppliers with complete contact information and transaction history.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">📈</div>
+        <h3>Reports & Analytics</h3>
+        <p>Generate profit/loss reports, track monthly performance, identify top-selling products, and make data-driven decisions.</p>
       </div>
     </div>
   </section>
 
   <!-- Footer -->
   <footer id="contact">
-    <div>
-      <a href="#">Privacy Policy</a> |
-      <a href="#">Terms of Service</a> |
-      <a href="#contact">Contact</a>
+    <div class="footer-content">
+      <div class="footer-section">
+        <h3>About EasyInventory</h3>
+        <p>EasyInventory is a simple yet powerful inventory management system designed specifically for small businesses. Manage your inventory, track sales, and grow your business with ease.</p>
+        <div class="social-links">
+          <a href="#" title="Facebook">f</a>
+          <a href="#" title="Twitter">𝕏</a>
+          <a href="#" title="LinkedIn">in</a>
+        </div>
+      </div>
+
+      <div class="footer-section">
+        <h3>Quick Links</h3>
+        <ul>
+          <li><a href="#home">Home</a></li>
+          <li><a href="#features">Features</a></li>
+          <li><a href="signup.php">Sign Up</a></li>
+          <li><a href="login.php">Login</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-section">
+        <h3>Support</h3>
+        <ul>
+          <li><a href="mailto:support@easyinventory.com">Contact Support</a></li>
+          <li><a href="#">Documentation</a></li>
+          <li><a href="#">Privacy Policy</a></li>
+          <li><a href="#">Terms of Service</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-section">
+        <h3>Contact Info</h3>
+        <p><strong>Email:</strong><br>support@easyinventory.com</p>
+        <p><strong>Location:</strong><br>Shillong, Meghalaya, India</p>
+      </div>
     </div>
-    <p>© 2025 EasyInventory. All rights reserved.</p>
+
+    <div class="footer-bottom">
+      <p>&copy; 2025 EasyInventory. All rights reserved. Built with ❤️ for small businesses.</p>
+    </div>
   </footer>
 
 </body>

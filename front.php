@@ -44,6 +44,8 @@ $fullname = $_SESSION['fullname'] ?? 'Admin User';
             position: fixed;
             height: 100vh;
             overflow-y: auto;
+            display: flex;
+            flex-direction: column;
         }
         
         .logo {
@@ -64,6 +66,7 @@ $fullname = $_SESSION['fullname'] ?? 'Admin User';
         .menu {
             list-style: none;
             padding: 0 15px;
+            flex: 1;
         }
         
         .menu-item {
@@ -116,6 +119,128 @@ $fullname = $_SESSION['fullname'] ?? 'Admin User';
             }
         }
         
+        /* User Profile Dropdown */
+        .user-profile {
+            padding: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+        
+        .user-profile-btn {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: none;
+            width: 100%;
+            color: white;
+        }
+        
+        .user-profile-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #3498db;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+        
+        .user-info {
+            flex: 1;
+            text-align: left;
+        }
+        
+        .user-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .user-role {
+            font-size: 0.75rem;
+            opacity: 0.8;
+        }
+        
+        .dropdown-arrow {
+            transition: transform 0.3s;
+        }
+        
+        .user-profile-btn.active .dropdown-arrow {
+            transform: rotate(180deg);
+        }
+        
+        .user-dropdown {
+            position: absolute;
+            bottom: 100%;
+            left: 15px;
+            right: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+            max-height: 0;
+            opacity: 0;
+            transition: all 0.3s;
+            margin-bottom: 10px;
+        }
+        
+        .user-dropdown.show {
+            max-height: 300px;
+            opacity: 1;
+        }
+        
+        .dropdown-item {
+            padding: 12px 15px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #2c3e50;
+            text-decoration: none;
+            transition: background 0.2s;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .dropdown-item:last-child {
+            border-bottom: none;
+        }
+        
+        .dropdown-item:hover {
+            background: #f8f9fa;
+        }
+        
+        .dropdown-item i {
+            width: 20px;
+            text-align: center;
+            color: #3498db;
+        }
+        
+        .dropdown-item.logout {
+            color: #e74c3c;
+        }
+        
+        .dropdown-item.logout i {
+            color: #e74c3c;
+        }
+        
+        .dropdown-item.logout:hover {
+            background: #fee;
+        }
+        
         .main-content {
             margin-left: 250px;
             flex: 1;
@@ -140,6 +265,15 @@ $fullname = $_SESSION['fullname'] ?? 'Admin User';
                 margin-left: 0;
                 width: 100%;
             }
+            
+            .user-dropdown {
+                position: relative;
+                bottom: auto;
+                left: 0;
+                right: 0;
+                margin-bottom: 0;
+                margin-top: 10px;
+            }
         }
     </style>
 </head>
@@ -153,11 +287,6 @@ $fullname = $_SESSION['fullname'] ?? 'Admin User';
                 <li class="menu-item">
                     <a onclick="loadPage('dashboard.php')" class="menu-link active" id="nav-dashboard">
                         <i class="fas fa-home"></i> Dashboard
-                    </a>
-                </li>
-                <li class="menu-item">
-                    <a onclick="loadPage('inventory.php')" class="menu-link" id="nav-inventory">
-                        <i class="fas fa-box"></i> Inventory
                     </a>
                 </li>
                 <li class="menu-item">
@@ -196,12 +325,36 @@ $fullname = $_SESSION['fullname'] ?? 'Admin User';
                         <i class="fas fa-chart-bar"></i> Reports
                     </a>
                 </li>
-                <li class="menu-item">
-                    <a href="logout.php" class="menu-link" onclick="return confirm('Are you sure you want to logout?');">
-                        <i class="fas fa-sign-out-alt"></i> Logout
-                    </a>
-                </li>
             </ul>
+
+            <!-- User Profile Section -->
+            <div class="user-profile">
+                <div class="user-dropdown" id="userDropdown">
+                    <a href="#" class="dropdown-item" onclick="event.preventDefault(); loadPage('profile.php')">
+                        <i class="fas fa-user"></i>
+                        <span>My Profile</span>
+                    </a>
+                    <a href="#" class="dropdown-item" onclick="event.preventDefault(); loadPage('settings.php')">
+                        <i class="fas fa-cog"></i>
+                        <span>Settings</span>
+                    </a>
+                    <a href="logout.php" class="dropdown-item logout" onclick="return confirm('Are you sure you want to logout?');">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>Logout</span>
+                    </a>
+                </div>
+                
+                <button class="user-profile-btn" id="userProfileBtn" onclick="toggleUserDropdown()">
+                    <div class="user-avatar">
+                        <?= strtoupper(substr($fullname, 0, 1)) ?>
+                    </div>
+                    <div class="user-info">
+                        <span class="user-name"><?= htmlspecialchars($fullname) ?></span>
+                        <span class="user-role">Administrator</span>
+                    </div>
+                    <i class="fas fa-chevron-up dropdown-arrow"></i>
+                </button>
+            </div>
         </div>
 
         <div class="main-content">
@@ -219,6 +372,25 @@ $fullname = $_SESSION['fullname'] ?? 'Admin User';
             });
             event.target.closest('.menu-link').classList.add('active');
         }
+
+        function toggleUserDropdown() {
+            const dropdown = document.getElementById('userDropdown');
+            const btn = document.getElementById('userProfileBtn');
+            
+            dropdown.classList.toggle('show');
+            btn.classList.toggle('active');
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const dropdown = document.getElementById('userDropdown');
+            const btn = document.getElementById('userProfileBtn');
+            
+            if (!btn.contains(event.target) && !dropdown.contains(event.target)) {
+                dropdown.classList.remove('show');
+                btn.classList.remove('active');
+            }
+        });
 
         // Function to update stock alert badge
         function updateStockAlerts() {

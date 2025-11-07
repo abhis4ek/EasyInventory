@@ -123,6 +123,37 @@ $stmt->bind_param('iss', $admin_id, $date_from, $date_to);
 $stmt->execute();
 $recent_purchases = $stmt->get_result();
 $stmt->close();
+
+// Total purchases
+$sql = "SELECT COUNT(*) AS total, COALESCE(SUM(total_amount), 0) AS total_amount FROM purchases WHERE admin_id = ?";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param('i', $admin_id);
+$stmt->execute();
+$r = $stmt->get_result()->fetch_assoc();
+$total_purchases = $r['total'];
+$total_purchases_amount = $r['total_amount'];
+$stmt->close();
+
+// Total sales
+$sql = "SELECT COUNT(*) AS total, COALESCE(SUM(total_amount), 0) AS total_amount FROM sales WHERE admin_id = ?";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param('i', $admin_id);
+$stmt->execute();
+$r = $stmt->get_result()->fetch_assoc();
+$total_sales = $r['total'];
+$total_sales_amount = $r['total_amount'];
+$stmt->close();
+
+// Calculate Profit/Loss
+$profit_loss = $total_sales_amount - $total_purchases_amount;
+
+// Get total inventory value
+$sql_inventory = "SELECT COALESCE(SUM(cost_price * stock), 0) AS inventory_value FROM products WHERE admin_id = ?";
+$stmt = $conn->prepare($sql_inventory);
+$stmt->bind_param('i', $admin_id);
+$stmt->execute();
+$inventory_value = $stmt->get_result()->fetch_assoc()['inventory_value'];
+$stmt->close();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -246,6 +277,67 @@ $stmt->close();
                 gap: 15px;
             }
         }
+        .dashboard-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            display: flex;
+            align-items: center;
+            transition: transform 0.3s;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            margin-right: 15px;
+        }
+        
+        .card-info h3 {
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+        
+        .card-info p {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        
+        .card-info small {
+            display: block;
+            color: #95a5a6;
+            font-size: 0.75rem;
+            margin-top: 2px;
+        }
+        
+        .bg-primary { background-color: #e3f2fd; color: #1976d2; }
+        .bg-success { background-color: #e8f5e9; color: #388e3c; }
+        .bg-warning { background-color: #fff8e1; color: #f57c00; }
+        .bg-danger { background-color: #ffebee; color: #d32f2f; }
+        .bg-purple { background-color: #f3e5f5; color: #7b1fa2; }
+        .bg-teal { background-color: #e0f2f1; color: #00796b; }
+        .bg-info { background-color: #e1f5fe; color: #0277bd; }
+        
+        .profit-text { color: #388e3c; }
+        .loss-text { color: #d32f2f; }
+
     </style>
 </head>
 <body>
@@ -264,6 +356,84 @@ $stmt->close();
                 <a href="?filter=all" class="filter-btn <?= $filter === 'all' ? 'active' : '' ?>">All Time</a>
             </div>
         </div>
+
+        <div class="dashboard-cards">
+            <div class="card">
+                <div class="card-icon bg-info">
+                    <i class="fas fa-warehouse"></i>
+                </div>
+                <div class="card-info">
+                    <h3>₹<?php echo number_format($inventory_value, 2); ?></h3>
+                    <p>Inventory Value</p>
+                    <small>Total stock at cost price</small>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-icon bg-success">
+                    <i class="fas fa-dollar-sign"></i>
+                </div>
+                <div class="card-info">
+                    <h3>₹<?php echo number_format($total_sales_amount, 2); ?></h3>
+                    <p>Total Sales</p>
+                    <small><?php echo $total_sales; ?> transactions</small>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-icon bg-purple">
+                    <i class="fas fa-shopping-cart"></i>
+                </div>
+                <div class="card-info">
+                    <h3>₹<?php echo number_format($total_purchases_amount, 2); ?></h3>
+                    <p>Total Purchases</p>
+                    <small><?php echo $total_purchases; ?> transactions</small>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-icon <?php echo $profit_loss >= 0 ? 'bg-success' : 'bg-danger'; ?>">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="card-info">
+                    <h3 class="<?php echo $profit_loss >= 0 ? 'profit-text' : 'loss-text'; ?>">
+                        ₹<?php echo number_format(abs($profit_loss), 2); ?>
+                    </h3>
+                    <p><?php echo $profit_loss >= 0 ? 'Profit' : 'Loss'; ?></p>
+                    <small>
+                        <?php 
+                        if($total_purchases_amount > 0) {
+                            $margin = ($profit_loss / $total_purchases_amount) * 100;
+                            echo number_format($margin, 2) . '% margin';
+                        } else {
+                            echo 'N/A';
+                        }
+                        ?>
+                    </small>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-icon bg-teal">
+                    <i class="fas fa-chart-pie"></i>
+                </div>
+                <div class="card-info">
+                    <h3>
+                        <?php 
+                        if($total_sales_amount > 0) {
+                            $net_margin = ($profit_loss / $total_sales_amount) * 100;
+                            echo number_format($net_margin, 2) . '%';
+                        } else {
+                            echo '0%';
+                        }
+                        ?>
+                    </h3>
+                    <p>Net Profit Margin</p>
+                    <small>Revenue efficiency</small>
+                </div>
+            </div>
+        </div>
+            
 
         <!-- Recent Transactions (Moved to Top) -->
         <div class="two-column">
