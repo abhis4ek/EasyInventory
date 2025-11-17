@@ -51,17 +51,23 @@ $items_stmt->close();
 // Calculate totals with GST
 $subtotal = 0;
 $total_gst = 0;
+$cgst_total = 0;
+$sgst_total = 0;
 $items_array = [];
 while($item = $items->fetch_assoc()) {
     $item_subtotal = $item['subtotal'];
     $gst_rate = $item['gst_rate'] ?? 0;
-    $gst_amount = ($item_subtotal * $gst_rate) / (100 + $gst_rate); // Reverse calculate GST from inclusive price
+    $gst_amount = ($item_subtotal * $gst_rate) / (100 + $gst_rate);
     
     $item['gst_amount'] = $gst_amount;
     $item['amount_before_gst'] = $item_subtotal - $gst_amount;
+    $item['cgst'] = $gst_amount / 2;
+    $item['sgst'] = $gst_amount / 2;
     
     $subtotal += $item['amount_before_gst'];
     $total_gst += $gst_amount;
+    $cgst_total += $item['cgst'];
+    $sgst_total += $item['sgst'];
     $items_array[] = $item;
 }
 $grand_total = $subtotal + $total_gst;
@@ -71,7 +77,7 @@ $grand_total = $subtotal + $total_gst;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sales Invoice #<?= $sale['id'] ?></title>
+    <title>Tax Invoice #<?= $sale['id'] ?></title>
     <style>
         * {
             margin: 0;
@@ -80,225 +86,253 @@ $grand_total = $subtotal + $total_gst;
         }
         
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: Arial, sans-serif;
             padding: 20px;
             background: #f5f5f5;
+            font-size: 12px;
         }
         
         .invoice-container {
-            max-width: 900px;
+            max-width: 210mm;
             margin: 0 auto;
             background: white;
-            padding: 40px;
+            padding: 0;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
         
         .invoice-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 40px;
-            padding-bottom: 20px;
-            border-bottom: 3px solid #27ae60;
+            border: 2px solid #000;
+            border-bottom: 1px solid #000;
         }
         
-        .company-details h1 {
-            color: #27ae60;
-            font-size: 28px;
+        .header-top {
+            padding: 15px 20px;
+            text-align: center;
+            border-bottom: 1px solid #000;
+        }
+        
+        .header-top h1 {
+            font-size: 24px;
             margin-bottom: 5px;
+            text-transform: uppercase;
         }
         
-        .company-details p {
-            color: #666;
-            font-size: 14px;
-            line-height: 1.6;
+        .header-top p {
+            font-size: 11px;
+            line-height: 1.4;
         }
         
         .invoice-title {
-            text-align: right;
-        }
-        
-        .invoice-title h2 {
-            color: #333;
-            font-size: 32px;
-            margin-bottom: 10px;
-        }
-        
-        .invoice-title p {
-            color: #666;
-            font-size: 14px;
+            background: #000;
+            color: #fff;
+            text-align: center;
+            padding: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            letter-spacing: 2px;
         }
         
         .invoice-meta {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-bottom: 40px;
+            border-bottom: 1px solid #000;
         }
         
-        .meta-box {
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 8px;
+        .meta-left {
+            padding: 15px 20px;
+            border-right: 1px solid #000;
         }
         
-        .meta-box h3 {
-            color: #27ae60;
-            font-size: 14px;
+        .meta-right {
+            padding: 15px 20px;
+        }
+        
+        .meta-row {
+            display: flex;
+            margin-bottom: 8px;
+            font-size: 11px;
+        }
+        
+        .meta-label {
+            font-weight: bold;
+            min-width: 120px;
+        }
+        
+        .address-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            border: 2px solid #000;
+            border-top: none;
+        }
+        
+        .address-box {
+            padding: 15px 20px;
+            min-height: 120px;
+        }
+        
+        .address-box:first-child {
+            border-right: 1px solid #000;
+        }
+        
+        .address-box h3 {
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 10px;
             text-transform: uppercase;
-            margin-bottom: 15px;
-            letter-spacing: 1px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
         }
         
-        .meta-box p {
-            color: #333;
-            font-size: 14px;
-            line-height: 1.8;
-            margin-bottom: 5px;
+        .address-box p {
+            font-size: 11px;
+            line-height: 1.6;
+            margin-bottom: 3px;
         }
         
-        .meta-box strong {
-            display: inline-block;
-            width: 100px;
-            color: #666;
-        }
-        
-        table {
+        .items-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 30px;
+            border: 2px solid #000;
+            border-top: none;
         }
         
-        table thead {
-            background: #27ae60;
-            color: white;
-        }
-        
-        table th {
-            padding: 12px 8px;
-            text-align: left;
-            font-weight: 600;
-            font-size: 12px;
+        .items-table th {
+            background: #f0f0f0;
+            border: 1px solid #000;
+            padding: 8px 5px;
+            text-align: center;
+            font-size: 10px;
+            font-weight: bold;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
         }
         
-        table th:last-child,
-        table td:last-child {
+        .items-table td {
+            border: 1px solid #000;
+            padding: 8px 5px;
+            font-size: 11px;
+            vertical-align: top;
+        }
+        
+        .items-table .text-center {
+            text-align: center;
+        }
+        
+        .items-table .text-right {
             text-align: right;
         }
         
-        table tbody tr {
-            border-bottom: 1px solid #e0e0e0;
+        .items-table tbody tr:hover {
+            background: #f9f9f9;
         }
         
-        table tbody tr:hover {
-            background: #f8f9fa;
+        .totals-section {
+            border: 2px solid #000;
+            border-top: none;
         }
         
-        table td {
-            padding: 12px 8px;
-            font-size: 13px;
-            color: #333;
+        .totals-grid {
+            display: grid;
+            grid-template-columns: 60% 40%;
         }
         
-        .item-name {
-            font-weight: 600;
-            color: #27ae60;
+        .totals-left {
+            padding: 15px 20px;
+            border-right: 1px solid #000;
         }
         
-        .item-category {
-            font-size: 11px;
-            color: #999;
-            display: block;
-            margin-top: 3px;
-        }
-        
-        .badge-mrp {
-            background: #ff9800;
-            color: white;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 10px;
-            margin-left: 5px;
-            float: right;  
-        }
-        
-        .total-section {
-            display: flex;
-            justify-content: flex-end;
-            margin-top: 30px;
-        }
-        
-        .total-box {
-            width: 350px;
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
+        .totals-right {
+            padding: 0;
         }
         
         .total-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 10px 0;
-            font-size: 14px;
-            color: #666;
+            display: grid;
+            grid-template-columns: 1fr 120px;
+            border-bottom: 1px solid #000;
+            font-size: 11px;
         }
         
-        .total-row.grand-total {
-            border-top: 2px solid #27ae60;
-            margin-top: 10px;
-            padding-top: 15px;
-            font-size: 18px;
+        .total-row:last-child {
+            border-bottom: none;
+        }
+        
+        .total-row .label {
+            padding: 8px 15px;
+            border-right: 1px solid #000;
             font-weight: bold;
-            color: #27ae60;
+            text-align: right;
         }
         
-        .gst-breakdown {
-            background: #fff3cd;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border-left: 4px solid #ffc107;
+        .total-row .value {
+            padding: 8px 15px;
+            text-align: right;
         }
         
-        .gst-breakdown h4 {
-            color: #856404;
-            font-size: 14px;
-            margin-bottom: 10px;
+        .grand-total {
+            background: #f0f0f0;
+            font-weight: bold;
+            font-size: 13px;
         }
         
-        .gst-breakdown p {
-            font-size: 12px;
-            color: #856404;
-            margin: 5px 0;
+        .amount-in-words {
+            padding: 15px 20px;
+            border-top: 1px solid #000;
+            font-size: 11px;
         }
         
-        .footer {
-            margin-top: 50px;
-            padding-top: 20px;
-            border-top: 1px solid #e0e0e0;
-            text-align: center;
-            color: #999;
-            font-size: 12px;
+        .amount-in-words strong {
+            display: block;
+            margin-bottom: 5px;
+            text-transform: uppercase;
         }
         
-        .thank-you {
-            text-align: center;
-            margin: 30px 0;
-            padding: 20px;
-            background: #d4edda;
-            border-radius: 8px;
-            color: #155724;
-            font-size: 16px;
-            font-weight: 600;
+        .terms-section {
+            padding: 15px 20px;
+            border: 2px solid #000;
+            border-top: none;
+            font-size: 10px;
+        }
+        
+        .terms-section h4 {
+            font-size: 11px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+        
+        .terms-section ol {
+            margin-left: 20px;
+            line-height: 1.6;
+        }
+        
+        .signature-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            border: 2px solid #000;
+            border-top: none;
+            min-height: 100px;
+        }
+        
+        .signature-box {
+            padding: 15px 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+        
+        .signature-box:first-child {
+            border-right: 1px solid #000;
+        }
+        
+        .signature-box p {
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
         }
         
         .action-buttons {
             text-align: center;
-            margin: 30px 0;
+            margin: 20px 0;
             padding: 20px;
-            background: #f8f9fa;
+            background: white;
             border-radius: 8px;
         }
         
@@ -339,35 +373,11 @@ $grand_total = $subtotal + $total_gst;
             
             .invoice-container {
                 box-shadow: none;
-                padding: 20px;
+                max-width: 100%;
             }
             
             .action-buttons {
                 display: none;
-            }
-        }
-        
-        @media (max-width: 768px) {
-            .invoice-header {
-                flex-direction: column;
-            }
-            
-            .invoice-title {
-                text-align: left;
-                margin-top: 20px;
-            }
-            
-            .invoice-meta {
-                grid-template-columns: 1fr;
-            }
-            
-            table {
-                font-size: 11px;
-            }
-            
-            table th,
-            table td {
-                padding: 8px 4px;
             }
         }
     </style>
@@ -375,64 +385,83 @@ $grand_total = $subtotal + $total_gst;
 <body>
     <div class="action-buttons">
         <button class="btn-print" onclick="window.print()">🖨️ Print Invoice</button>
-        <button class="btn-back" onclick="window.location.href='sales.php'">← Back to Sales</button>
+        <button class="btn-back" onclick="window.location.href='front.php'">← Back to Dashboard</button>
     </div>
 
     <div class="invoice-container">
+        <!-- Header -->
         <div class="invoice-header">
-            <div class="company-details">
-                <h1><?= htmlspecialchars($admin_data['shop_name'] ?? 'My Shop') ?></h1>
-                <p><strong>Owner:</strong> <?= htmlspecialchars($admin_data['fullname']) ?></p>
-                <p><strong>Email:</strong> <?= htmlspecialchars($admin_data['email']) ?></p>
+            <div class="header-top">
+                <h1><?= htmlspecialchars($admin_data['shop_name'] ?? 'MY BUSINESS') ?></h1>
+                <p>Proprietor: <?= htmlspecialchars($admin_data['fullname']) ?></p>
+                <p>Email: <?= htmlspecialchars($admin_data['email']) ?></p>
+                <p>GSTIN: [Your GSTIN Number]</p>
             </div>
-            <div class="invoice-title">
-                <h2>SALES INVOICE</h2>
-                <p><strong>Invoice #:</strong> INV-<?= str_pad($sale['id'], 6, '0', STR_PAD_LEFT) ?></p>
-                <p><strong>Date:</strong> <?= date('F d, Y', strtotime($sale['sale_date'])) ?></p>
+            <div class="invoice-title">TAX INVOICE</div>
+            <div class="invoice-meta">
+                <div class="meta-left">
+                    <div class="meta-row">
+                        <span class="meta-label">Invoice Number:</span>
+                        <span><?= str_pad($sale['id'], 6, '0', STR_PAD_LEFT) ?></span>
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label">Invoice Date:</span>
+                        <span><?= date('d-m-Y', strtotime($sale['sale_date'])) ?></span>
+                    </div>
+                </div>
+                <div class="meta-right">
+                    <div class="meta-row">
+                        <span class="meta-label">Payment Due Date:</span>
+                        <span><?= date('d-m-Y', strtotime($sale['sale_date'])) ?></span>
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label">Mode of Payment:</span>
+                        <span>CASH</span>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="invoice-meta">
-            <div class="meta-box">
-                <h3>Bill To</h3>
-                <p><strong>Customer:</strong> <?= htmlspecialchars($sale['customer_name'] ?? 'Walk-in Customer') ?></p>
+        <!-- Addresses -->
+        <div class="address-section">
+            <div class="address-box">
+                <h3>Billing Address</h3>
+                <p><strong><?= htmlspecialchars($sale['customer_name'] ?? 'Walk-in Customer') ?></strong></p>
                 <?php if($sale['street_address']): ?>
-                <p><strong>Address:</strong> <?= htmlspecialchars($sale['street_address']) ?></p>
-                <p><?= htmlspecialchars($sale['city']) ?>, <?= htmlspecialchars($sale['state']) ?> - <?= htmlspecialchars($sale['pin_code']) ?></p>
+                <p><?= htmlspecialchars($sale['street_address']) ?></p>
+                <p><?= htmlspecialchars($sale['city']) ?>, <?= htmlspecialchars($sale['state']) ?></p>
+                <p>PIN: <?= htmlspecialchars($sale['pin_code']) ?></p>
                 <?php endif; ?>
                 <?php if($sale['phone']): ?>
-                <p><strong>Phone:</strong> <?= htmlspecialchars($sale['phone']) ?></p>
-                <?php endif; ?>
-                <?php if($sale['email']): ?>
-                <p><strong>Email:</strong> <?= htmlspecialchars($sale['email']) ?></p>
+                <p>Phone: <?= htmlspecialchars($sale['phone']) ?></p>
                 <?php endif; ?>
             </div>
             
-            <div class="meta-box">
-                <h3>Invoice Details</h3>
-                <p><strong>Invoice ID:</strong> #<?= $sale['id'] ?></p>
-                <p><strong>Sale Date:</strong> <?= date('M d, Y', strtotime($sale['sale_date'])) ?></p>
-                <p><strong>Generated:</strong> <?= date('M d, Y H:i', strtotime($sale['created_at'])) ?></p>
-                <p><strong>Status:</strong> <span style="color: #27ae60; font-weight: 600;">PAID</span></p>
+            <div class="address-box">
+                <h3>Shipping Address</h3>
+                <p><strong><?= htmlspecialchars($sale['customer_name'] ?? 'Walk-in Customer') ?></strong></p>
+                <?php if($sale['street_address']): ?>
+                <p><?= htmlspecialchars($sale['street_address']) ?></p>
+                <p><?= htmlspecialchars($sale['city']) ?>, <?= htmlspecialchars($sale['state']) ?></p>
+                <p>PIN: <?= htmlspecialchars($sale['pin_code']) ?></p>
+                <?php endif; ?>
             </div>
         </div>
 
-        <?php if($total_gst > 0): ?>
-        <div class="gst-breakdown">
-            <h4>📋 GST Information</h4>
-            <p>This invoice includes GST as per applicable rates. Total GST: ₹<?= number_format($total_gst, 2) ?></p>
-        </div>
-        <?php endif; ?>
-
-        <table>
+        <!-- Items Table -->
+        <table class="items-table">
             <thead>
                 <tr>
-                    <th style="width: 40px;">#</th>
-                    <th>Product Details</th>
-                    <th style="width: 80px; text-align: center;">Qty</th>
-                    <th style="width: 100px; text-align: right;">Price</th>
-                    <th style="width: 80px; text-align: center;">GST %</th>
-                    <th style="width: 100px;">Amount</th>
+                    <th style="width: 30px;">S.No</th>
+                    <th style="width: 35%;">Description of Goods</th>
+                    <th style="width: 60px;">Qty</th>
+                    <th style="width: 70px;">Rate</th>
+                    <th style="width: 70px;">Disc %</th>
+                    <th style="width: 90px;">Taxable Amount</th>
+                    <th style="width: 50px;">GST %</th>
+                    <th style="width: 70px;">CGST Amt</th>
+                    <th style="width: 70px;">SGST Amt</th>
+                    <th style="width: 90px;">Total</th>
                 </tr>
             </thead>
             <tbody>
@@ -441,51 +470,108 @@ $grand_total = $subtotal + $total_gst;
                 foreach($items_array as $item): 
                 ?>
                 <tr>
-                    <td><?= $row_num++ ?></td>
-                    <td>
-                        <span class="item-name"><?= htmlspecialchars($item['product_name']) ?></span>
-                        <?php if($item['has_mrp'] && $item['mrp'] > 0): ?>
-                            <span class="badge-mrp">MRP ₹<?= number_format($item['mrp'], 2) ?></span>
-                        <?php endif; ?>
-                        <span class="item-category"><?= htmlspecialchars($item['category_name'] ?? '') ?></span>
-                    </td>
-                    <td style="text-align: center;"><?= $item['quantity'] ?></td>
-                    <td style="text-align: right;">₹<?= number_format($item['unit_price'], 2) ?></td>
-                    <td style="text-align: center;"><?= number_format($item['gst_rate'], 2) ?>%</td>
-                    <td style="text-align: right;"><strong>₹<?= number_format($item['subtotal'], 2) ?></strong></td>
+                    <td class="text-center"><?= $row_num++ ?></td>
+                    <td><?= htmlspecialchars($item['product_name']) ?></td>
+                    <td class="text-center"><?= $item['quantity'] ?></td>
+                    <td class="text-right">₹<?= number_format($item['unit_price'], 2) ?></td>
+                    <td class="text-center">0</td>
+                    <td class="text-right">₹<?= number_format($item['amount_before_gst'], 2) ?></td>
+                    <td class="text-center"><?= number_format($item['gst_rate'], 1) ?>%</td>
+                    <td class="text-right">₹<?= number_format($item['cgst'], 2) ?></td>
+                    <td class="text-right">₹<?= number_format($item['sgst'], 2) ?></td>
+                    <td class="text-right"><strong>₹<?= number_format($item['subtotal'], 2) ?></strong></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
         </table>
 
-        <div class="total-section">
-            <div class="total-box">
-                <div class="total-row">
-                    <span>Subtotal (before GST):</span>
-                    <span>₹<?= number_format($subtotal, 2) ?></span>
+        <!-- Totals -->
+        <div class="totals-section">
+            <div class="totals-grid">
+                <div class="totals-left">
+                    <strong style="font-size: 11px;">THANK YOU FOR YOUR BUSINESS!</strong>
                 </div>
-                <?php if($total_gst > 0): ?>
-                <div class="total-row">
-                    <span>Total GST:</span>
-                    <span>₹<?= number_format($total_gst, 2) ?></span>
+                <div class="totals-right">
+                    <div class="total-row">
+                        <div class="label">Taxable Value:</div>
+                        <div class="value">₹<?= number_format($subtotal, 2) ?></div>
+                    </div>
+                    <div class="total-row">
+                        <div class="label">CGST:</div>
+                        <div class="value">₹<?= number_format($cgst_total, 2) ?></div>
+                    </div>
+                    <div class="total-row">
+                        <div class="label">SGST:</div>
+                        <div class="value">₹<?= number_format($sgst_total, 2) ?></div>
+                    </div>
+                    <div class="total-row">
+                        <div class="label">Round Off:</div>
+                        <div class="value">₹0.00</div>
+                    </div>
+                    <div class="total-row grand-total">
+                        <div class="label">TOTAL PAYABLE:</div>
+                        <div class="value">₹<?= number_format($sale['total_amount'], 2) ?></div>
+                    </div>
                 </div>
-                <?php endif; ?>
-                <div class="total-row grand-total">
-                    <span>TOTAL AMOUNT:</span>
-                    <span>₹<?= number_format($sale['total_amount'], 2) ?></span>
-                </div>
+            </div>
+            
+            <div class="amount-in-words">
+                <strong>Amount in Words:</strong>
+                <span style="text-transform: capitalize;"><?= convertNumberToWords($sale['total_amount']) ?> Rupees Only</span>
             </div>
         </div>
 
-        <div class="thank-you">
-            🎉 Thank you for your business! We appreciate your patronage.
+        <!-- Terms & Conditions -->
+        <div class="terms-section">
+            <h4>Terms and Conditions:</h4>
+            <ol>
+                <li>Goods once sold will not be taken back or exchanged</li>
+                <li>All disputes are subject to local jurisdiction only</li>
+                <li>Payment should be made within the due date</li>
+            </ol>
         </div>
 
-        <div class="footer">
-            <p>This is a computer-generated invoice from <?= htmlspecialchars($admin_data['shop_name'] ?? 'Easy Inventory') ?></p>
-            <p>Generated on <?= date('F d, Y \a\t H:i') ?></p>
-            <p style="margin-top: 10px; font-size: 11px;">For any queries, please contact us at <?= htmlspecialchars($admin_data['email']) ?></p>
+        <!-- Signature -->
+        <div class="signature-section">
+            <div class="signature-box">
+                <p>Customer Signature</p>
+            </div>
+            <div class="signature-box" style="text-align: right;">
+                <p>For <?= htmlspecialchars($admin_data['shop_name'] ?? 'MY BUSINESS') ?></p>
+                <br>
+                <p>Authorized Signatory</p>
+            </div>
         </div>
     </div>
 </body>
 </html>
+
+<?php
+function convertNumberToWords($number) {
+    $number = (int)$number;
+    $words = array(
+        0 => '', 1 => 'One', 2 => 'Two', 3 => 'Three', 4 => 'Four', 5 => 'Five',
+        6 => 'Six', 7 => 'Seven', 8 => 'Eight', 9 => 'Nine', 10 => 'Ten',
+        11 => 'Eleven', 12 => 'Twelve', 13 => 'Thirteen', 14 => 'Fourteen', 15 => 'Fifteen',
+        16 => 'Sixteen', 17 => 'Seventeen', 18 => 'Eighteen', 19 => 'Nineteen', 20 => 'Twenty',
+        30 => 'Thirty', 40 => 'Forty', 50 => 'Fifty', 60 => 'Sixty', 70 => 'Seventy',
+        80 => 'Eighty', 90 => 'Ninety'
+    );
+    
+    if ($number == 0) return 'Zero';
+    
+    if ($number < 21) {
+        return $words[$number];
+    } elseif ($number < 100) {
+        return $words[10 * floor($number / 10)] . ' ' . $words[$number % 10];
+    } elseif ($number < 1000) {
+        return $words[floor($number / 100)] . ' Hundred ' . convertNumberToWords($number % 100);
+    } elseif ($number < 100000) {
+        return convertNumberToWords(floor($number / 1000)) . ' Thousand ' . convertNumberToWords($number % 1000);
+    } elseif ($number < 10000000) {
+        return convertNumberToWords(floor($number / 100000)) . ' Lakh ' . convertNumberToWords($number % 100000);
+    } else {
+        return convertNumberToWords(floor($number / 10000000)) . ' Crore ' . convertNumberToWords($number % 10000000);
+    }
+}
+?>

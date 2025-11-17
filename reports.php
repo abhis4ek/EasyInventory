@@ -6,6 +6,26 @@ if (!isset($_SESSION['admin_id'])) {
 }
 require 'db.php';
 
+// Indian Number Formatting Function
+function formatIndianNumber($num) {
+    $num = number_format($num, 2, '.', '');
+    $parts = explode('.', $num);
+    $integer = $parts[0];
+    $decimal = isset($parts[1]) ? $parts[1] : '00';
+    
+    // Indian system: last 3 digits, then groups of 2
+    $lastThree = substr($integer, -3);
+    $otherNumbers = substr($integer, 0, -3);
+    
+    if ($otherNumbers != '') {
+        $lastThree = ',' . $lastThree;
+    }
+    
+    $result = preg_replace('/\B(?=(\d{2})+(?!\d))/', ',', $otherNumbers) . $lastThree;
+    
+    return $result . '.' . $decimal;
+}
+
 $admin_id = $_SESSION['admin_id'];
 
 // Get date range filter
@@ -28,8 +48,10 @@ switch($filter) {
         break;
 }
 
-// ✅ Total Sales (filtered by user)
-$sql_sales = "SELECT COUNT(*) as total_transactions, SUM(total_amount) as total_sales 
+// --- DATA FOR DASHBOARD CARDS ---
+
+// Total Sales
+$sql_sales = "SELECT COUNT(*) as total_transactions, COALESCE(SUM(total_amount), 0) as total_sales 
               FROM sales 
               WHERE admin_id = ? AND sale_date BETWEEN ? AND ?";
 $stmt = $conn->prepare($sql_sales);
@@ -38,8 +60,8 @@ $stmt->execute();
 $sales_data = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-// ✅ Total Purchases (filtered by user)
-$sql_purchases = "SELECT COUNT(*) as total_transactions, SUM(total_amount) as total_purchases 
+// Total Purchases
+$sql_purchases = "SELECT COUNT(*) as total_transactions, COALESCE(SUM(total_amount), 0) as total_purchases 
                   FROM purchases 
                   WHERE admin_id = ? AND purchase_date BETWEEN ? AND ?";
 $stmt = $conn->prepare($sql_purchases);
@@ -48,12 +70,24 @@ $stmt->execute();
 $purchases_data = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-// Calculate Profit/Loss
-$total_sales = $sales_data['total_sales'] ?? 0;
-$total_purchases = $purchases_data['total_purchases'] ?? 0;
-$profit_loss = $total_sales - $total_purchases;
+// Card values
+$total_sales = $sales_data['total_transactions'];
+$total_sales_amount = $sales_data['total_sales'];
+$total_purchases = $purchases_data['total_transactions'];
+$total_purchases_amount = $purchases_data['total_purchases'];
+$profit_loss = $total_sales_amount - $total_purchases_amount;
 
-// ✅ Monthly breakdown for chart (filtered by user)
+//  FIXED: Inventory value (not filtered by date)
+$sql_inventory = "SELECT COALESCE(SUM(selling_price * stock), 0) AS inventory_value FROM products WHERE admin_id = ?";
+$stmt = $conn->prepare($sql_inventory);
+$stmt->bind_param('i', $admin_id);
+$stmt->execute();
+$inventory_value = $stmt->get_result()->fetch_assoc()['inventory_value'];
+$stmt->close();
+
+// --- DATA FOR CHARTS AND TABLES ---
+
+// Monthly breakdown for chart
 $monthly_sql = "
     SELECT 
         DATE_FORMAT(date, '%Y-%m') as month,
@@ -77,24 +111,24 @@ $stmt->execute();
 $monthly_data = $stmt->get_result();
 $stmt->close();
 
-// ✅ Top selling products (filtered by user)
-$top_products_sql = "
-    SELECT p.name, SUM(si.quantity) as total_qty, SUM(si.subtotal) as total_revenue
+// Top products
+$all_products_sql = "
+    SELECT p.name AS Product, SUM(si.quantity) as QuantitySold, SUM(si.subtotal) as TotalRevenue
     FROM sale_items si
     JOIN products p ON si.product_id = p.id
     JOIN sales s ON si.sale_id = s.id
     WHERE s.admin_id = ? AND s.sale_date BETWEEN ? AND ?
     GROUP BY p.id
-    ORDER BY total_revenue DESC
-    LIMIT 5
+    ORDER BY TotalRevenue DESC
 ";
-$stmt = $conn->prepare($top_products_sql);
+$stmt = $conn->prepare($all_products_sql);
 $stmt->bind_param('iss', $admin_id, $date_from, $date_to);
 $stmt->execute();
-$top_products = $stmt->get_result();
+$all_products_result = $stmt->get_result();
+$all_products_data = $all_products_result->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-// ✅ Recent sales transactions (filtered by user)
+// Recent sales
 $recent_sales_sql = "
     SELECT s.id, s.sale_date, s.total_amount, c.name as customer_name
     FROM sales s
@@ -109,7 +143,7 @@ $stmt->execute();
 $recent_sales = $stmt->get_result();
 $stmt->close();
 
-// ✅ Recent purchase transactions (filtered by user)
+// Recent purchases
 $recent_purchases_sql = "
     SELECT p.id, p.purchase_date, p.total_amount, s.name as supplier_name
     FROM purchases p
@@ -124,35 +158,40 @@ $stmt->execute();
 $recent_purchases = $stmt->get_result();
 $stmt->close();
 
-// Total purchases
-$sql = "SELECT COUNT(*) AS total, COALESCE(SUM(total_amount), 0) AS total_amount FROM purchases WHERE admin_id = ?";
-$stmt = $conn->prepare($sql);
-$stmt->bind_param('i', $admin_id);
+// ALL sales (for Excel export)
+$export_sales_sql = "
+    SELECT 
+        s.id AS SaleID, 
+        s.sale_date AS Date, 
+        c.name as Customer, 
+        s.total_amount AS Amount
+    FROM sales s
+    LEFT JOIN customers c ON s.customer_id = c.id
+    WHERE s.admin_id = ? AND s.sale_date BETWEEN ? AND ?
+    ORDER BY s.sale_date DESC
+";
+$stmt = $conn->prepare($export_sales_sql);
+$stmt->bind_param('iss', $admin_id, $date_from, $date_to);
 $stmt->execute();
-$r = $stmt->get_result()->fetch_assoc();
-$total_purchases = $r['total'];
-$total_purchases_amount = $r['total_amount'];
+$export_sales_data = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-// Total sales
-$sql = "SELECT COUNT(*) AS total, COALESCE(SUM(total_amount), 0) AS total_amount FROM sales WHERE admin_id = ?";
-$stmt = $conn->prepare($sql);
-$stmt->bind_param('i', $admin_id);
+// ALL purchases (for Excel export)
+$export_purchases_sql = "
+    SELECT 
+        p.id AS PurchaseID, 
+        p.purchase_date AS Date, 
+        s.name as Supplier, 
+        p.total_amount AS Amount
+    FROM purchases p
+    LEFT JOIN suppliers s ON p.supplier_id = s.id
+    WHERE p.admin_id = ? AND p.purchase_date BETWEEN ? AND ?
+    ORDER BY p.purchase_date DESC
+";
+$stmt = $conn->prepare($export_purchases_sql);
+$stmt->bind_param('iss', $admin_id, $date_from, $date_to);
 $stmt->execute();
-$r = $stmt->get_result()->fetch_assoc();
-$total_sales = $r['total'];
-$total_sales_amount = $r['total_amount'];
-$stmt->close();
-
-// Calculate Profit/Loss
-$profit_loss = $total_sales_amount - $total_purchases_amount;
-
-// Get total inventory value
-$sql_inventory = "SELECT COALESCE(SUM(cost_price * stock), 0) AS inventory_value FROM products WHERE admin_id = ?";
-$stmt = $conn->prepare($sql_inventory);
-$stmt->bind_param('i', $admin_id);
-$stmt->execute();
-$inventory_value = $stmt->get_result()->fetch_assoc()['inventory_value'];
+$export_purchases_data = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 ?>
 <!DOCTYPE html>
@@ -162,190 +201,303 @@ $stmt->close();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reports - Easy Inventory</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'Poppins', sans-serif;
+    }
+    
+    body {
+        background-color: #f7faff;
+        color: #2D3748;
+        padding: 20px;
+    }
+    
+    .container {
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+    
+    .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid #e2e8f0;
+    }
+    
+    .page-title {
+        font-size: 2.2rem;
+        color: #2D3748;
+        font-weight: 700;
+    }
+
+    .page-subtitle {
+        color: #718096;
+        margin-top: 5px;
+        font-weight: 400;
+    }
+    
+    .filter-buttons {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    
+    .filter-btn {
+        padding: 10px 20px;
+        border: 2px solid #5A67D8;
+        background: white;
+        color: #5A67D8;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.2s ease-in-out;
+        text-decoration: none;
+        font-size: 0.9rem;
+    }
+    
+    .filter-btn:hover, .filter-btn.active {
+        background: #5A67D8;
+        color: white;
+        box-shadow: 0 4px 12px rgba(90, 103, 216, 0.2);
+    }
+
+    .export-buttons {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+
+    .export-btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.2s ease-in-out;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.9rem;
+    }
+
+    .export-btn.excel {
+        background: #38A169;
+        color: white;
+    }
+
+    .export-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    }
+    
+    .chart-section {
+        background: white;
+        border-radius: 12px;
+        padding: 25px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.07), 0 5px 10px -5px rgba(0, 0, 0, 0.04);
+        border: 1px solid #e2e8f0;
+    }
+    
+    .section-title {
+        font-size: 1.3rem;
+        color: #2D3748;
+        font-weight: 600;
+        margin-bottom: 25px;
+        border-left: 4px solid #5A67D8;
+        padding-left: 15px;
+    }
+    
+    .two-column {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+        margin-bottom: 30px;
+    }
+    
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    table th, table td {
+        padding: 14px 12px;
+        text-align: left;
+        border-bottom: 1px solid #e2e8f0;
+        color: #4A5568;
+    }
+    
+    table th {
+        background-color: #f8f9fc;
+        font-weight: 600;
+        color: #718096;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    table tbody tr:nth-child(even) {
+        background-color: #fdfdff;
+    }
+    
+    table tr:hover {
+        background-color: #f0f5ff;
+    }
+
+    .dashboard-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 30px;
+        margin-bottom: 30px;
+    }
+    
+    .card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        display: flex;
+        align-items: center;
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.07), 0 5px 10px -5px rgba(0, 0, 0, 0.04);
+        min-width: 0;
+    }
+    
+    .card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 30px -7px rgba(0, 0, 0, 0.1), 0 6px 15px -7px rgba(0, 0, 0, 0.05);
+    }
+    
+    .card-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+        margin-right: 20px;
+        flex-shrink: 0;
+    }
+    
+    .card-info {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+    }
+    
+    .card-info h3 {
+        font-size: 1.4rem;
+        font-weight: 600;
+        margin-bottom: 5px;
+        line-height: 1.3;
+        word-break: break-word;
+        overflow-wrap: break-word;
+    }
+    
+    .card-info p {
+        color: #4A5568;
+        font-size: 0.9rem;
+        font-weight: 500;
+        line-height: 1.4;
+    }
+    
+    .card-info small {
+        display: block;
+        color: #718096;
+        font-size: 0.75rem;
+        margin-top: 3px;
+        line-height: 1.3;
+    }
+    
+    .bg-info { background-color: #ebf4ff; color: #5A67D8; }
+    .bg-success { background-color: #f0fff4; color: #38A169; }
+    .bg-warning { background-color: #fffaf0; color: #DD6B20; }
+    .bg-danger { background-color: #fff5f5; color: #E53E3E; }
+    .bg-purple { background-color: #faf5ff; color: #805AD5; }
+    .bg-teal { background-color: #e6fffa; color: #319795; }
+    
+    .profit-text { color: #38A169; }
+    .loss-text { color: #E53E3E; }
+
+    @media (max-width: 1200px) {
+        .card-info h3 {
+            font-size: 1.4rem;
         }
-        
-        body {
-            background-color: #f5f7fa;
-            color: #333;
-            padding: 20px;
-        }
-        
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-        
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #e0e6ed;
-        }
-        
-        .page-title {
-            font-size: 2rem;
-            color: #2c3e50;
-        }
-        
-        .filter-buttons {
-            display: flex;
-            gap: 10px;
-        }
-        
-        .filter-btn {
-            padding: 10px 20px;
-            border: 2px solid #3498db;
-            background: white;
-            color: #3498db;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s;
-            text-decoration: none;
-        }
-        
-        .filter-btn:hover, .filter-btn.active {
-            background: #3498db;
-            color: white;
-        }
-        
-        .chart-section {
-            background: white;
-            border-radius: 10px;
-            padding: 25px;
-            margin-bottom: 30px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-        }
-        
-        .section-title {
-            font-size: 1.3rem;
-            color: #2c3e50;
-            margin-bottom: 20px;
-            border-left: 4px solid #3498db;
-            padding-left: 15px;
-        }
-        
+    }
+
+    @media (max-width: 768px) {
         .two-column {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 30px;
+            grid-template-columns: 1fr;
         }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
+        .filter-buttons {
+            flex-wrap: wrap;
         }
-        
-        table th, table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #e0e6ed;
-        }
-        
-        table th {
-            background-color: #f8f9fa;
-            font-weight: 600;
-            color: #2c3e50;
-        }
-        
-        table tr:hover {
-            background-color: #f8f9fa;
-        }
-        
-        @media (max-width: 768px) {
-            .two-column {
-                grid-template-columns: 1fr;
-            }
-            
-            .filter-buttons {
-                flex-wrap: wrap;
-            }
-            
-            .header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 15px;
-            }
+        .header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 15px;
         }
         .dashboard-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+            grid-template-columns: 1fr;
         }
-        
+        .card-info h3 {
+            font-size: 1.5rem;
+        }
+        .card-info h3,
+        .card-info p,
+        .card-info small {
+            white-space: normal;
+            word-break: break-word;
+        }
+    }
+
+    @media (max-width: 480px) {
         .card {
-            background: white;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-            display: flex;
-            align-items: center;
-            transition: transform 0.3s;
+            padding: 15px;
         }
-        
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-        }
-        
         .card-icon {
-            width: 60px;
-            height: 60px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.8rem;
+            width: 50px;
+            height: 50px;
+            font-size: 1.5rem;
             margin-right: 15px;
         }
-        
         .card-info h3 {
-            font-size: 1.8rem;
-            margin-bottom: 5px;
+            font-size: 1.3rem;
         }
-        
-        .card-info p {
-            color: #7f8c8d;
-            font-size: 0.9rem;
-        }
-        
-        .card-info small {
-            display: block;
-            color: #95a5a6;
-            font-size: 0.75rem;
-            margin-top: 2px;
-        }
-        
-        .bg-primary { background-color: #e3f2fd; color: #1976d2; }
-        .bg-success { background-color: #e8f5e9; color: #388e3c; }
-        .bg-warning { background-color: #fff8e1; color: #f57c00; }
-        .bg-danger { background-color: #ffebee; color: #d32f2f; }
-        .bg-purple { background-color: #f3e5f5; color: #7b1fa2; }
-        .bg-teal { background-color: #e0f2f1; color: #00796b; }
-        .bg-info { background-color: #e1f5fe; color: #0277bd; }
-        
-        .profit-text { color: #388e3c; }
-        .loss-text { color: #d32f2f; }
+    }
 
-    </style>
+    @media print {
+        .filter-buttons, .export-buttons {
+            display: none !important;
+        }
+        body {
+            padding: 0;
+        }
+        .chart-section, .card {
+            box-shadow: none;
+            border: 1px solid #ccc;
+        }
+    }
+</style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <div>
                 <h1 class="page-title">Financial Reports</h1>
-                <p style="color: #7f8c8d; margin-top: 5px;">
+                <p class="page-subtitle">
                     Period: <?= date('M d, Y', strtotime($date_from)) ?> to <?= date('M d, Y', strtotime($date_to)) ?>
                 </p>
             </div>
@@ -357,230 +509,251 @@ $stmt->close();
             </div>
         </div>
 
-        <div class="dashboard-cards">
-            <div class="card">
-                <div class="card-icon bg-info">
-                    <i class="fas fa-warehouse"></i>
+        <div class="export-buttons">
+            <button class="export-btn excel" onclick="exportExcel()">
+                <i class="fas fa-file-excel"></i> Export as Excel
+            </button>
+        </div>
+
+        <div id="reportContent">
+            <div class="dashboard-cards">
+                <div class="card">
+                    <div class="card-icon bg-info">
+                        <i class="fas fa-warehouse"></i>
+                    </div>
+                    <div class="card-info">
+                        <h3>₹<?php echo formatIndianNumber($inventory_value); ?></h3>
+                        <p>Inventory Retail Value</p>
+                        <small>Total stock at retail price</small>
+                    </div>
                 </div>
-                <div class="card-info">
-                    <h3>₹<?php echo number_format($inventory_value, 2); ?></h3>
-                    <p>Inventory Value</p>
-                    <small>Total stock at cost price</small>
+
+                <div class="card">
+                    <div class="card-icon bg-success">
+                        <i class="fas fa-dollar-sign"></i>
+                    </div>
+                    <div class="card-info">
+                        <h3>₹<?php echo formatIndianNumber($total_sales_amount); ?></h3>
+                        <p>Total Sales</p>
+                        <small><?php echo $total_sales; ?> transactions</small>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon bg-purple">
+                        <i class="fas fa-shopping-cart"></i>
+                    </div>
+                    <div class="card-info">
+                        <h3>₹<?php echo formatIndianNumber($total_purchases_amount); ?></h3>
+                        <p>Total Purchases</p>
+                        <small><?php echo $total_purchases; ?> transactions</small>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon <?php echo $profit_loss >= 0 ? 'bg-success' : 'bg-danger'; ?>">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="card-info">
+                        <h3 class="<?php echo $profit_loss >= 0 ? 'profit-text' : 'loss-text'; ?>">
+                            ₹<?php echo formatIndianNumber(abs($profit_loss)); ?>
+                        </h3>
+                        <p><?php echo $profit_loss >= 0 ? 'Profit' : 'Loss'; ?></p>
+                        <small>
+                            <?php 
+                            if($total_purchases_amount > 0) {
+                                $margin = ($profit_loss / $total_purchases_amount) * 100;
+                                echo number_format($margin, 2) . '% margin';
+                            } else {
+                                echo 'N/A';
+                            }
+                            ?>
+                        </small>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon bg-teal">
+                        <i class="fas fa-chart-pie"></i>
+                    </div>
+                    <div class="card-info">
+                        <h3>
+                            <?php 
+                            if($total_sales_amount > 0) {
+                                $net_margin = ($profit_loss / $total_sales_amount) * 100;
+                                echo number_format($net_margin, 2) . '%';
+                            } else {
+                                echo '0%';
+                            }
+                            ?>
+                        </h3>
+                        <p>Net Profit Margin</p>
+                        <small>Revenue efficiency</small>
+                    </div>
+                </div>
+            </div>
+                
+            <div class="two-column">
+                <div class="chart-section">
+                    <h3 class="section-title">Recent Sales</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Date</th>
+                                <th>Customer</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if($recent_sales->num_rows > 0): ?>
+                                <?php while($row = $recent_sales->fetch_assoc()): ?>
+                                <tr>
+                                    <td>#<?= $row['id'] ?></td>
+                                    <td><?= date('M d, Y', strtotime($row['sale_date'])) ?></td>
+                                    <td><?= htmlspecialchars($row['customer_name'] ?? 'Walk-in') ?></td>
+                                    <td>₹<?= formatIndianNumber($row['total_amount']) ?></td>
+                                </tr>
+                                <?php endwhile; ?>
+                            <?php else: ?>
+                                <tr><td colspan="4" style="text-align:center;">No sales in this period</td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="chart-section">
+                    <h3 class="section-title">Recent Purchases</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Date</th>
+                                <th>Supplier</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if($recent_purchases->num_rows > 0): ?>
+                                <?php while($row = $recent_purchases->fetch_assoc()): ?>
+                                <tr>
+                                    <td>#<?= $row['id'] ?></td>
+                                    <td><?= date('M d, Y', strtotime($row['purchase_date'])) ?></td>
+                                    <td><?= htmlspecialchars($row['supplier_name'] ?? 'Unknown') ?></td>
+                                    <td>₹<?= formatIndianNumber($row['total_amount']) ?></td>
+                                </tr>
+                                <?php endwhile; ?>
+                            <?php else: ?>
+                                <tr><td colspan="4" style="text-align:center;">No purchases in this period</td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            <div class="card">
-                <div class="card-icon bg-success">
-                    <i class="fas fa-dollar-sign"></i>
-                </div>
-                <div class="card-info">
-                    <h3>₹<?php echo number_format($total_sales_amount, 2); ?></h3>
-                    <p>Total Sales</p>
-                    <small><?php echo $total_sales; ?> transactions</small>
-                </div>
+            <div class="chart-section">
+                <h3 class="section-title">Monthly Performance</h3>
+                <canvas id="monthlyChart" height="80"></canvas>
             </div>
 
-            <div class="card">
-                <div class="card-icon bg-purple">
-                    <i class="fas fa-shopping-cart"></i>
-                </div>
-                <div class="card-info">
-                    <h3>₹<?php echo number_format($total_purchases_amount, 2); ?></h3>
-                    <p>Total Purchases</p>
-                    <small><?php echo $total_purchases; ?> transactions</small>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-icon <?php echo $profit_loss >= 0 ? 'bg-success' : 'bg-danger'; ?>">
-                    <i class="fas fa-chart-line"></i>
-                </div>
-                <div class="card-info">
-                    <h3 class="<?php echo $profit_loss >= 0 ? 'profit-text' : 'loss-text'; ?>">
-                        ₹<?php echo number_format(abs($profit_loss), 2); ?>
-                    </h3>
-                    <p><?php echo $profit_loss >= 0 ? 'Profit' : 'Loss'; ?></p>
-                    <small>
+            <div class="chart-section">
+                <h3 class="section-title">Monthly Profit/Loss Breakdown</h3>
+                <table id="monthlyTable">
+                    <thead>
+                        <tr>
+                            <th>Month</th>
+                            <th>Sales</th>
+                            <th>Purchases</th>
+                            <th>Profit/Loss</th>
+                            <th>Margin</th>
+                        </tr>
+                    </thead>
+                    <tbody>
                         <?php 
-                        if($total_purchases_amount > 0) {
-                            $margin = ($profit_loss / $total_purchases_amount) * 100;
-                            echo number_format($margin, 2) . '% margin';
-                        } else {
-                            echo 'N/A';
-                        }
+                        $monthly_data->data_seek(0);
+                        if($monthly_data->num_rows > 0): 
+                            while($row = $monthly_data->fetch_assoc()): 
+                                $month_profit = $row['profit'];
+                                $month_margin = $row['sales'] > 0 ? ($month_profit / $row['sales']) * 100 : 0;
                         ?>
-                    </small>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-icon bg-teal">
-                    <i class="fas fa-chart-pie"></i>
-                </div>
-                <div class="card-info">
-                    <h3>
+                        <tr>
+                            <td><strong><?= date('F Y', strtotime($row['month'].'-01')) ?></strong></td>
+                            <td class="profit-text" style="font-weight: 500;">₹<?= formatIndianNumber($row['sales']) ?></td>
+                            <td class="loss-text" style="font-weight: 500;">₹<?= formatIndianNumber($row['purchases']) ?></td>
+                            <td class="<?= $month_profit >= 0 ? 'profit-text' : 'loss-text' ?>" style="font-weight: 600;">
+                                <?= $month_profit >= 0 ? '+' : '' ?>₹<?= formatIndianNumber($month_profit) ?>
+                            </td>
+                            <td style="font-weight: 500;"><?= number_format($month_margin, 2) ?>%</td>
+                        </tr>
                         <?php 
-                        if($total_sales_amount > 0) {
-                            $net_margin = ($profit_loss / $total_sales_amount) * 100;
-                            echo number_format($net_margin, 2) . '%';
-                        } else {
-                            echo '0%';
-                        }
+                            endwhile;
+                        else: 
                         ?>
-                    </h3>
-                    <p>Net Profit Margin</p>
-                    <small>Revenue efficiency</small>
+                            <tr><td colspan="5" style="text-align:center;">No data available for this period</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="two-column">
+                <div class="chart-section">
+                    <h3 class="section-title">Top 5 Products by Revenue</h3>
+                    <table id="topProductsTable">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Qty Sold</th>
+                                <th>Revenue</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if(count($all_products_data) > 0): ?>
+                                <?php foreach(array_slice($all_products_data, 0, 5) as $row): ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($row['Product']) ?></td>
+                                    <td><?= $row['QuantitySold'] ?></td>
+                                    <td style="font-weight: 500;">₹<?= formatIndianNumber($row['TotalRevenue']) ?></td>
+                                </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr><td colspan="3" style="text-align:center;">No data available</td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
                 </div>
-            </div>
-        </div>
-            
 
-        <!-- Recent Transactions (Moved to Top) -->
-        <div class="two-column">
-            <!-- Recent Sales -->
-            <div class="chart-section">
-                <h3 class="section-title">Recent Sales</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Date</th>
-                            <th>Customer</th>
-                            <th>Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if($recent_sales->num_rows > 0): ?>
-                            <?php while($row = $recent_sales->fetch_assoc()): ?>
-                            <tr>
-                                <td>#<?= $row['id'] ?></td>
-                                <td><?= date('M d, Y', strtotime($row['sale_date'])) ?></td>
-                                <td><?= htmlspecialchars($row['customer_name'] ?? 'Walk-in') ?></td>
-                                <td>₹<?= number_format($row['total_amount'], 2) ?></td>
-                            </tr>
-                            <?php endwhile; ?>
-                        <?php else: ?>
-                            <tr><td colspan="4" style="text-align:center;">No sales in this period</td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Recent Purchases -->
-            <div class="chart-section">
-                <h3 class="section-title">Recent Purchases</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Date</th>
-                            <th>Supplier</th>
-                            <th>Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if($recent_purchases->num_rows > 0): ?>
-                            <?php while($row = $recent_purchases->fetch_assoc()): ?>
-                            <tr>
-                                <td>#<?= $row['id'] ?></td>
-                                <td><?= date('M d, Y', strtotime($row['purchase_date'])) ?></td>
-                                <td><?= htmlspecialchars($row['supplier_name'] ?? 'Unknown') ?></td>
-                                <td>₹<?= number_format($row['total_amount'], 2) ?></td>
-                            </tr>
-                            <?php endwhile; ?>
-                        <?php else: ?>
-                            <tr><td colspan="4" style="text-align:center;">No purchases in this period</td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Monthly Chart -->
-        <div class="chart-section">
-            <h3 class="section-title">Monthly Performance</h3>
-            <canvas id="monthlyChart" height="80"></canvas>
-        </div>
-
-        <!-- Monthly Breakdown Table -->
-        <div class="chart-section">
-            <h3 class="section-title">Monthly Profit/Loss Breakdown</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Month</th>
-                        <th>Sales</th>
-                        <th>Purchases</th>
-                        <th>Profit/Loss</th>
-                        <th>Margin</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php 
-                    $monthly_data->data_seek(0);
-                    if($monthly_data->num_rows > 0): 
-                        while($row = $monthly_data->fetch_assoc()): 
-                            $month_profit = $row['profit'];
-                            $month_margin = $row['sales'] > 0 ? ($month_profit / $row['sales']) * 100 : 0;
-                    ?>
-                    <tr>
-                        <td><strong><?= date('F Y', strtotime($row['month'].'-01')) ?></strong></td>
-                        <td style="color: #27ae60;">₹<?= number_format($row['sales'], 2) ?></td>
-                        <td style="color: #e74c3c;">₹<?= number_format($row['purchases'], 2) ?></td>
-                        <td style="color: <?= $month_profit >= 0 ? '#27ae60' : '#e74c3c' ?>; font-weight: bold;">
-                            <?= $month_profit >= 0 ? '+' : '' ?>₹<?= number_format($month_profit, 2) ?>
-                        </td>
-                        <td><?= number_format($month_margin, 2) ?>%</td>
-                    </tr>
-                    <?php 
-                        endwhile;
-                    else: 
-                    ?>
-                        <tr><td colspan="5" style="text-align:center;">No data available for this period</td></tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Two Column Section -->
-        <div class="two-column">
-            <!-- Top Products -->
-            <div class="chart-section">
-                <h3 class="section-title">Top 5 Products by Revenue</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Product</th>
-                            <th>Qty Sold</th>
-                            <th>Revenue</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if($top_products->num_rows > 0): ?>
-                            <?php while($row = $top_products->fetch_assoc()): ?>
-                            <tr>
-                                <td><?= htmlspecialchars($row['name']) ?></td>
-                                <td><?= $row['total_qty'] ?></td>
-                                <td>₹<?= number_format($row['total_revenue'], 2) ?></td>
-                            </tr>
-                            <?php endwhile; ?>
-                        <?php else: ?>
-                            <tr><td colspan="3" style="text-align:center;">No data available</td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Profit Distribution -->
-            <div class="chart-section">
-                <h3 class="section-title">Profit Distribution</h3>
-                <canvas id="profitChart"></canvas>
+                <div class="chart-section">
+                    <h3 class="section-title">Profit Distribution</h3>
+                    <canvas id="profitChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        // Monthly Performance Chart
+        // Indian Numbering System Formatter
+        function formatIndianCurrency(num) {
+            const n = parseFloat(num);
+            if (isNaN(n)) return '₹0';
+            
+            const numStr = Math.abs(n).toFixed(2);
+            const [integer, decimal] = numStr.split('.');
+            
+            // Indian system: last 3 digits, then groups of 2
+            let lastThree = integer.substring(integer.length - 3);
+            let otherNumbers = integer.substring(0, integer.length - 3);
+            
+            if (otherNumbers !== '') {
+                lastThree = ',' + lastThree;
+            }
+            
+            let result = otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + lastThree;
+            
+            return (n < 0 ? '-₹' : '₹') + result + '.' + decimal;
+        }
+
+        Chart.defaults.font.family = "'Poppins', sans-serif";
+
         const monthlyData = <?php 
             $months = [];
             $sales = [];
@@ -601,6 +774,10 @@ $stmt->close();
             ]);
         ?>;
 
+        const allSalesData = <?php echo json_encode($export_sales_data); ?>;
+        const allPurchasesData = <?php echo json_encode($export_purchases_data); ?>;
+        const allProductsData = <?php echo json_encode($all_products_data); ?>;
+
         const ctx1 = document.getElementById('monthlyChart').getContext('2d');
         new Chart(ctx1, {
             type: 'line',
@@ -610,42 +787,45 @@ $stmt->close();
                     {
                         label: 'Sales',
                         data: monthlyData.sales,
-                        borderColor: '#27ae60',
-                        backgroundColor: 'rgba(39, 174, 96, 0.1)',
-                        tension: 0.4
+                        borderColor: '#38A169',
+                        backgroundColor: 'rgba(56, 161, 105, 0.1)',
+                        tension: 0.4,
+                        fill: true
                     },
                     {
                         label: 'Purchases',
                         data: monthlyData.purchases,
-                        borderColor: '#e74c3c',
-                        backgroundColor: 'rgba(231, 76, 60, 0.1)',
-                        tension: 0.4
+                        borderColor: '#E53E3E',
+                        backgroundColor: 'rgba(229, 62, 62, 0.1)',
+                        tension: 0.4,
+                        fill: true
                     },
                     {
                         label: 'Profit',
                         data: monthlyData.profits,
-                        borderColor: '#3498db',
-                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
-                        tension: 0.4
+                        borderColor: '#5A67D8',
+                        backgroundColor: 'rgba(90, 103, 216, 0.1)',
+                        tension: 0.4,
+                        fill: true
                     }
                 ]
             },
             options: {
                 responsive: true,
                 plugins: {
-                    legend: {
-                        position: 'top',
-                    }
+                    legend: { position: 'top', labels: { font: { size: 14 } } }
                 },
                 scales: {
                     y: {
-                        beginAtZero: true
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) { return formatIndianCurrency(value); }
+                        }
                     }
                 }
             }
         });
 
-        // Profit Distribution Pie Chart
         const ctx2 = document.getElementById('profitChart').getContext('2d');
         new Chart(ctx2, {
             type: 'doughnut',
@@ -653,28 +833,61 @@ $stmt->close();
                 labels: ['Sales Revenue', 'Purchase Costs', 'Net Profit'],
                 datasets: [{
                     data: [
-                        <?= $total_sales ?>,
-                        <?= $total_purchases ?>,
+                        <?= $total_sales_amount ?>,
+                        <?= $total_purchases_amount ?>,
                         <?= max(0, $profit_loss) ?>
                     ],
-                    backgroundColor: [
-                        'rgba(39, 174, 96, 0.8)',
-                        'rgba(231, 76, 60, 0.8)',
-                        'rgba(52, 152, 219, 0.8)'
-                    ],
-                    borderWidth: 2,
+                    backgroundColor: ['#38A169', '#E53E3E', '#5A67D8'],
+                    borderWidth: 4,
                     borderColor: '#fff'
                 }]
             },
             options: {
                 responsive: true,
                 plugins: {
-                    legend: {
-                        position: 'bottom',
-                    }
-                }
+                    legend: { position: 'bottom', labels: { font: { size: 14 }, padding: 20 } }
+                },
+                cutout: '70%'
             }
         });
+
+        function exportExcel() {
+            const wb = XLSX.utils.book_new();
+            
+            const summaryData = [
+                ['Financial Report Summary'],
+                ['Period', '<?= date("M d, Y", strtotime($date_from)) ?> to <?= date("M d, Y", strtotime($date_to)) ?>'],
+                [],
+                ['Metric', 'Value'],
+                ['Total Sales', '₹<?= formatIndianNumber($total_sales_amount) ?>'],
+                ['Total Purchases', '₹<?= formatIndianNumber($total_purchases_amount) ?>'],
+                ['Profit/Loss', '₹<?= formatIndianNumber($profit_loss) ?>'],
+                ['Net Profit Margin', '<?= $total_sales_amount > 0 ? number_format(($profit_loss / $total_sales_amount) * 100, 2) : 0 ?>%'],
+                ['Inventory Retail Value', '₹<?= formatIndianNumber($inventory_value) ?>']
+            ];
+            const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
+            ws1['!cols'] = [{ wch: 25 }, { wch: 20 }];
+            XLSX.utils.book_append_sheet(wb, ws1, 'Summary');
+
+            const monthlyTable = document.getElementById('monthlyTable');
+            const ws2 = XLSX.utils.table_to_sheet(monthlyTable);
+            ws2['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 10 }];
+            XLSX.utils.book_append_sheet(wb, ws2, 'Monthly Breakdown');
+
+            const ws3 = XLSX.utils.json_to_sheet(allProductsData);
+            ws3['!cols'] = [{ wch: 30 }, { wch: 15 }, { wch: 20 }];
+            XLSX.utils.book_append_sheet(wb, ws3, 'All Products by Revenue');
+
+            const ws4 = XLSX.utils.json_to_sheet(allSalesData);
+            ws4['!cols'] = [{ wch: 10 }, { wch: 20 }, { wch: 25 }, { wch: 15 }];
+            XLSX.utils.book_append_sheet(wb, ws4, 'Detailed Sales');
+
+            const ws5 = XLSX.utils.json_to_sheet(allPurchasesData);
+            ws5['!cols'] = [{ wch: 10 }, { wch: 20 }, { wch: 25 }, { wch: 15 }];
+            XLSX.utils.book_append_sheet(wb, ws5, 'Detailed Purchases');
+
+            XLSX.writeFile(wb, 'financial_report_<?= $filter ?>_<?= date("Y-m-d") ?>.xlsx');
+        }
     </script>
 </body>
 </html>

@@ -292,7 +292,7 @@ if (isset($_SESSION['email'])) {
   <section class="hero" id="home">
     <h1>Inventory Management Made Simple</h1>
     <p>Manage inventory, track sales and purchases, monitor stock levels, and generate reports - all in one easy-to-use platform designed for small businesses.</p>
-    <a href="signup.php" class="btn">Get Started Free</a>
+    <a href="signup.php" class="btn">Get Started</a>
   </section>
 
   <!-- Features Section -->

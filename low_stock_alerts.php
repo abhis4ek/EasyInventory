@@ -8,28 +8,68 @@ require 'db.php';
 $admin_id = $_SESSION['admin_id'];
 $fullname = $_SESSION['fullname'] ?? 'Admin User';
 
-// Get low stock products (stock <= 20)
+// Get low stock products with last supplier info
 $stmt = $conn->prepare("
-    SELECT p.id, p.name, p.stock, p.cost_price, p.selling_price, c.name as category_name
+    SELECT 
+        p.id, 
+        p.name, 
+        p.stock, 
+        p.cost_price, 
+        p.selling_price, 
+        c.name as category_name,
+        s.id as last_supplier_id,
+        s.name as last_supplier_name
     FROM products p
     LEFT JOIN categories c ON p.category_id = c.id
+    LEFT JOIN (
+        SELECT 
+            pi.product_id,
+            pu.supplier_id,
+            pu.purchase_date
+        FROM purchase_items pi
+        JOIN purchases pu ON pi.purchase_id = pu.id
+        WHERE pu.admin_id = ?
+        ORDER BY pu.purchase_date DESC, pu.id DESC
+    ) AS last_purchase ON p.id = last_purchase.product_id
+    LEFT JOIN suppliers s ON last_purchase.supplier_id = s.id
     WHERE p.admin_id = ? AND p.stock > 0 AND p.stock <= 20
+    GROUP BY p.id
     ORDER BY p.stock ASC, p.name
 ");
-$stmt->bind_param('i', $admin_id);
+$stmt->bind_param('ii', $admin_id, $admin_id);
 $stmt->execute();
 $low_stock = $stmt->get_result();
 $stmt->close();
 
-// Get out of stock products (stock = 0)
+// Get out of stock products with last supplier info
 $stmt = $conn->prepare("
-    SELECT p.id, p.name, p.stock, p.cost_price, p.selling_price, c.name as category_name
+    SELECT 
+        p.id, 
+        p.name, 
+        p.stock, 
+        p.cost_price, 
+        p.selling_price, 
+        c.name as category_name,
+        s.id as last_supplier_id,
+        s.name as last_supplier_name
     FROM products p
     LEFT JOIN categories c ON p.category_id = c.id
+    LEFT JOIN (
+        SELECT 
+            pi.product_id,
+            pu.supplier_id,
+            pu.purchase_date
+        FROM purchase_items pi
+        JOIN purchases pu ON pi.purchase_id = pu.id
+        WHERE pu.admin_id = ?
+        ORDER BY pu.purchase_date DESC, pu.id DESC
+    ) AS last_purchase ON p.id = last_purchase.product_id
+    LEFT JOIN suppliers s ON last_purchase.supplier_id = s.id
     WHERE p.admin_id = ? AND p.stock = 0
+    GROUP BY p.id
     ORDER BY p.name
 ");
-$stmt->bind_param('i', $admin_id);
+$stmt->bind_param('ii', $admin_id, $admin_id);
 $stmt->execute();
 $out_of_stock = $stmt->get_result();
 $stmt->close();
@@ -177,7 +217,7 @@ $stmt->close();
         }
         
         .action-btn {
-            padding: 6px 12px;
+            padding: 8px 16px;
             border: none;
             border-radius: 4px;
             font-size: 0.85rem;
@@ -185,11 +225,30 @@ $stmt->close();
             background-color: #3498db;
             color: white;
             text-decoration: none;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s;
         }
         
         .action-btn:hover {
             background-color: #2980b9;
+            transform: translateY(-2px);
+        }
+        
+        .supplier-info {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 4px;
+        }
+        
+        .supplier-badge {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 3px 8px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
         }
         
         .no-data {
@@ -202,20 +261,6 @@ $stmt->close();
             font-size: 3rem;
             margin-bottom: 15px;
             color: #27ae60;
-        }
-        
-        .info-box {
-            background: #e3f2fd;
-            border-left: 4px solid #2196f3;
-            padding: 15px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-        }
-        
-        .info-box p {
-            margin: 5px 0;
-            font-size: 0.9rem;
-            color: #1565c0;
         }
         
         @media (max-width: 768px) {
@@ -257,7 +302,7 @@ $stmt->close();
                         <th>Current Stock</th>
                         <th>Status</th>
                         <th>Cost Price</th>
-                        <th>Selling Price</th>
+                        <th>Last Supplier</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -273,9 +318,17 @@ $stmt->close();
                             </span>
                         </td>
                         <td>₹<?= number_format($product['cost_price'], 2) ?></td>
-                        <td>₹<?= number_format($product['selling_price'], 2) ?></td>
                         <td>
-                            <a href="javascript:void(0)" onclick="parent.loadPage('purchases.php')" class="action-btn">
+                            <?php if($product['last_supplier_name']): ?>
+                                <span class="supplier-badge"><?= htmlspecialchars($product['last_supplier_name']) ?></span>
+                            <?php else: ?>
+                                <span style="color: #999; font-size: 0.85rem;">No previous purchases</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <a href="javascript:void(0)" 
+                               onclick="reorderProduct(<?= $product['id'] ?>, '<?= htmlspecialchars($product['name'], ENT_QUOTES) ?>', <?= $product['last_supplier_id'] ?? 'null' ?>, '<?= htmlspecialchars($product['last_supplier_name'] ?? '', ENT_QUOTES) ?>', <?= $product['cost_price'] ?>)" 
+                               class="action-btn">
                                 <i class="fas fa-shopping-cart"></i> Reorder
                             </a>
                         </td>
@@ -311,7 +364,7 @@ $stmt->close();
                         <th>Current Stock</th>
                         <th>Status</th>
                         <th>Cost Price</th>
-                        <th>Selling Price</th>
+                        <th>Last Supplier</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -327,15 +380,25 @@ $stmt->close();
                             </span>
                         </td>
                         <td>₹<?= number_format($product['cost_price'], 2) ?></td>
-                        <td>₹<?= number_format($product['selling_price'], 2) ?></td>
                         <td>
-                            <a href="javascript:void(0)" onclick="parent.loadPage('purchases.php')" class="action-btn">
+                            <?php if($product['last_supplier_name']): ?>
+                                <span class="supplier-badge"><?= htmlspecialchars($product['last_supplier_name']) ?></span>
+                            <?php else: ?>
+                                <span style="color: #999; font-size: 0.85rem;">No previous purchases</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <a href="javascript:void(0)" 
+                               onclick="reorderProduct(<?= $product['id'] ?>, '<?= htmlspecialchars($product['name'], ENT_QUOTES) ?>', <?= $product['last_supplier_id'] ?? 'null' ?>, '<?= htmlspecialchars($product['last_supplier_name'] ?? '', ENT_QUOTES) ?>', <?= $product['cost_price'] ?>)" 
+                               class="action-btn">
                                 <i class="fas fa-shopping-cart"></i> Reorder Now
                             </a>
                         </td>
                     </tr>
                     <?php endwhile; ?>
-                <?php else: ?>
+                </tbody>
+            </table>
+        <?php else: ?>
             <div class="no-data">
                 <i class="fas fa-check-circle"></i>
                 <p><strong>Excellent!</strong></p>
@@ -343,5 +406,24 @@ $stmt->close();
             </div>
         <?php endif; ?>
     </div>
+
+    <script>
+        function reorderProduct(productId, productName, supplierId, supplierName, unitPrice) {
+            // Store reorder data in sessionStorage
+            const reorderData = {
+                product_id: productId,
+                product_name: productName,
+                supplier_id: supplierId,
+                supplier_name: supplierName,
+                unit_price: unitPrice,
+                quantity: 10 // Default quantity suggestion
+            };
+            
+            sessionStorage.setItem('reorder_data', JSON.stringify(reorderData));
+            
+            // Navigate to purchases page
+            parent.loadPage('purchases.php');
+        }
+    </script>
 </body>
 </html>

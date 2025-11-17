@@ -5,6 +5,24 @@ if (!isset($_SESSION['admin_id'])) {
     exit();
 }
 require 'db.php';
+function formatIndianCurrency($number) {
+    $number = number_format($number, 2, '.', '');
+    $parts = explode('.', $number);
+    $integerPart = $parts[0];
+    $decimalPart = $parts[1];
+    
+    $lastThree = substr($integerPart, -3);
+    $otherNumbers = substr($integerPart, 0, -3);
+    
+    if ($otherNumbers != '') {
+        $lastThree = ',' . $lastThree;
+    }
+    
+    $result = preg_replace('/\B(?=(\d{2})+(?!\d))/', ',', $otherNumbers) . $lastThree;
+    
+    return '₹' . $result . '.' . $decimalPart;
+}
+
 $admin_id = $_SESSION['admin_id'];
 ?>
 
@@ -12,90 +30,507 @@ $admin_id = $_SESSION['admin_id'];
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Sales Management</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sales Management - EasyInventory</title>
+  
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <script src="https://unpkg.com/feather-icons"></script>
+  
   <style>
+    /* --- 1. Global Reset & Body --- */
+    :root {
+        --sidebar-bg: #111827; /* Dark Blue/Gray */
+        --main-bg: #F9FAFB;     /* Light Gray */
+        --card-bg: #FFFFFF;
+        --border-color: #E5E7EB;
+        --text-primary: #1F2937;
+        --text-secondary: #6B7280;
+        --brand-blue: #3B82F6;
+        --brand-green: #10B981;
+        --brand-red: #EF4444;
+        --brand-yellow: #F59E0B;
+        --brand-gray: #F3F4F6;
+    }
+    
+    * {
+        box-sizing: border-box;
+    }
+
     body {
-      background-color: #f5f7fa;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-family: 'Inter', sans-serif;
+        background-color: var(--main-bg);
+        color: var(--text-primary);
+        /* Removed grid layout properties */
+        margin: 0;
+        padding: 0;
     }
 
-    .page-header {
-      background: white;
-      padding: 25px;
-      border-radius: 10px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      margin-bottom: 25px;
+    /* --- 2. Sidebar Navigation (STYLES REMOVED AS SIDEBAR IS GONE) --- */
+    /* .sidebar, .sidebar-header, .sidebar-nav, etc. removed */
+
+    /* --- 3. Main Content Area --- */
+    .main-content {
+        background-color: var(--main-bg);
+        /* Removed height and overflow, padding provides page spacing */
+        padding: 2rem;
     }
 
-    .page-header h2 {
-      margin: 0;
-      color: #2c3e50;
-      font-size: 1.8rem;
+    .main-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
     }
 
-    .stats-cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 20px;
-      margin-bottom: 25px;
+    .main-header h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin: 0;
     }
 
-    .stat-card {
-      background: white;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      border-left: 4px solid #27ae60;
+    .btn-primary {
+        background-color: var(--brand-green);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.25rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.875rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: background-color 0.2s ease;
+    }
+    
+    .btn-primary:hover {
+        background-color: #059669;
     }
 
-    .stat-card h6 {
-      color: #7f8c8d;
-      font-size: 0.85rem;
-      margin-bottom: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+    /* --- 4. KPI Cards Section --- */
+    .kpi-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
     }
 
-    .stat-card .stat-value {
-      font-size: 1.8rem;
-      font-weight: bold;
-      color: #2c3e50;
+    .kpi-card {
+        background-color: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+    }
+    
+    .kpi-card .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
     }
 
-    .content-card {
-      background: white;
-      padding: 25px;
-      border-radius: 10px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    .kpi-card .card-title {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--text-secondary);
     }
 
-    .search-filter-section {
-      display: flex;
-      gap: 15px;
+    .kpi-card .card-icon {
+        color: var(--text-secondary);
+    }
+
+    .kpi-card .card-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+    }
+
+    .kpi-card .card-comparison {
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .kpi-card .card-comparison .positive {
+        color: var(--brand-green);
+        font-weight: 600;
+    }
+    
+    .kpi-card .card-comparison .negative {
+        color: var(--brand-red);
+        font-weight: 600;
+    }
+    
+    .kpi-card .card-comparison .neutral {
+        color: var(--text-secondary);
+    }
+
+    /* --- 5. Main Chart Section --- */
+    .main-chart {
+        background-color: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+        margin-bottom: 2rem;
+    }
+    
+    .main-chart h2 {
+        font-size: 1.125rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+    }
+
+    /* Static/Simulated Bar Chart */
+    .chart-container {
+        height: 250px;
+        display: flex;
+        align-items: flex-end;
+        gap: 0.5%;
+        padding: 0 1rem;
+        border-bottom: 2px solid var(--border-color);
+    }
+    
+    .chart-bar {
+        width: 100%;
+        background-color: var(--brand-blue);
+        border-radius: 4px 4px 0 0;
+        opacity: 0.8;
+        transition: opacity 0.2s ease;
+    }
+    
+    .chart-bar:hover {
+        opacity: 1;
+    }
+
+    /* --- 6. Transactions Table Section --- */
+    .transactions-section {
+        background-color: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+        overflow: hidden; /* For rounded corners on table */
+    }
+    
+    .table-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .table-header h2 {
+        font-size: 1.125rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+    
+    .table-filters {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+    
+    .search-bar {
+        flex-grow: 1;
+        position: relative;
+    }
+    
+    .search-bar .search-icon {
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-secondary);
+        width: 18px;
+        height: 18px;
+    }
+    
+    .table-filters input[type="text"],
+    .table-filters input[type="date"],
+    .table-filters select {
+        width: 100%;
+        padding: 0.65rem 0.75rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-family: 'Inter', sans-serif;
+        font-size: 0.875rem;
+        background-color: white; /* Ensure consistent background */
+    }
+    
+    .table-filters input[type="text"] {
+        padding-left: 2.5rem; /* Space for icon */
+        min-width: 250px;
+    }
+    
+    .table-filters input[type="date"],
+    .table-filters select {
+        min-width: 150px;
+        width: auto;
+    }
+
+    .table-container {
+        width: 100%;
+        overflow-x: auto; /* For responsive on small screens */
+    }
+
+    /* Style for your existing .table-hover */
+    .table-hover tbody tr.sale-row:hover {
+        background-color: var(--main-bg);
+    }
+
+    .transactions-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .transactions-table th,
+    .transactions-table td {
+        padding: 1rem 1.5rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+        font-size: 0.875rem;
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+
+    .transactions-table th {
+        background-color: var(--main-bg);
+        color: var(--text-secondary);
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.05em;
+    }
+    
+    .transactions-table tbody tr.details-row td {
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .customer-name {
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    /* --- Status Pills (Re-style of your .status-badge) --- */
+    .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 50px;
+        font-weight: 500;
+    }
+    .status .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+    
+    .status-paid {
+        background-color: #ECFDF5; /* Green tint */
+        color: #065F46; /* Dark Green */
+    }
+    .status-paid .status-dot { background-color: #10B981; }
+    
+    /* --- Badges (Re-style of your .customer-badge etc.) --- */
+    .badge-clean {
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    .badge-blue { background-color: #EFF6FF; color: #1D4ED8; }
+    .badge-gray { background-color: var(--brand-gray); color: var(--text-secondary); }
+    .badge-yellow { background-color: #FFFBEB; color: #B45309; }
+
+
+    .table-actions {
+        display: flex;
+        gap: 0.75rem;
+    }
+    
+    .action-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--text-secondary);
+        padding: 0.25rem;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+    
+    .action-btn:hover {
+        color: var(--text-primary);
+        background-color: var(--border-color);
+    }
+
+    .action-btn-delete:hover {
+        color: var(--brand-red);
+        background-color: #FEF2F2;
+    }
+
+    /* --- Your Custom Functionality (Re-skinned) --- */
+    .sale-row {
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .expand-icon {
+      transition: transform 0.3s;
+      width: 18px;
+      height: 18px;
+      color: var(--text-secondary);
+    }
+
+    .expanded .expand-icon {
+      transform: rotate(90deg);
+    }
+    
+    .details-row {
+      display: none;
+      background-color: #FDFDFD;
+    }
+    
+    .details-row td {
+      padding: 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .details-content {
+      padding: 1.5rem 2.5rem;
+    }
+
+    .details-table {
+      margin: 1rem 0 0 0;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+    }
+    .details-table th { background-color: var(--main-bg); }
+    .details-table th, .details-table td {
+        padding: 0.75rem 1rem;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+    }
+
+    .empty-state .empty-icon {
+      font-size: 4rem;
+      color: #D1D5DB;
       margin-bottom: 20px;
-      flex-wrap: wrap;
+      width: 60px;
+      height: 60px;
     }
 
-    .search-filter-section input,
-    .search-filter-section select {
-      padding: 10px 15px;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      font-size: 0.95rem;
+    .empty-state h5 {
+      color: var(--text-secondary);
+      margin-bottom: 10px;
     }
 
-    .search-filter-section input[type="text"] {
-      flex: 1;
-      min-width: 250px;
+    .empty-state p {
+      color: #9CA3AF;
     }
 
-    .search-filter-section select {
-      min-width: 150px;
+    /* --- Modal Re-skin --- */
+    .modal-content {
+        border-radius: 12px;
+        border: none;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        font-family: 'Inter', sans-serif;
+    }
+    .modal-header {
+        background-color: var(--main-bg);
+        border-bottom: 1px solid var(--border-color);
+        padding: 1.25rem 1.5rem;
+    }
+    .modal-title {
+        font-weight: 600;
+        font-size: 1.125rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .modal-body {
+        padding: 1.5rem;
+    }
+    .modal-footer {
+        background-color: var(--main-bg);
+        border-top: 1px solid var(--border-color);
+        padding: 1rem 1.5rem;
     }
 
+    /* Form & Input Re-skin */
+    .form-label {
+        font-weight: 500;
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+    }
+    .form-control, .form-select {
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        padding: 0.65rem 0.75rem;
+        font-size: 0.875rem;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: var(--brand-blue);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        outline: none;
+    }
+    
+    .input-group .btn {
+        border-radius: 0 8px 8px 0;
+    }
+    .input-group .form-select {
+        border-radius: 8px 0 0 8px;
+    }
+    
+    .card {
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+    }
+    .card-header {
+        background-color: var(--main-bg);
+        border-bottom: 1px solid var(--border-color);
+        font-weight: 600;
+    }
+
+    .btn-secondary {
+        background-color: #e5e7eb;
+        border-color: #e5e7eb;
+        color: #374151;
+        font-weight: 600;
+    }
+    .btn-secondary:hover {
+        background-color: #d1d5db;
+        border-color: #d1d5db;
+    }
+    .btn-success {
+        background-color: var(--brand-green);
+        border-color: var(--brand-green);
+        font-weight: 600;
+    }
+    .btn-success:hover {
+        background-color: #059669;
+        border-color: #059669;
+    }
+    .btn-danger {
+        font-weight: 500;
+    }
+    
+    /* Your validation error style */
     .error-text {
       color: #dc3545;
       font-size: 0.875rem;
@@ -106,396 +541,379 @@ $admin_id = $_SESSION['admin_id'];
     .is-invalid {
       border-color: #dc3545 !important;
     }
-
-    .sale-row {
-      cursor: pointer;
-      transition: background-color 0.2s;
+    .is-invalid:focus {
+        box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.2);
     }
-
-    .sale-row:hover {
-      background-color: #f8f9fa;
-    }
-
-    .details-row {
-      display: none;
-      background-color: #f8f9fa;
-    }
-
-    .details-table {
-      margin: 15px 0;
-    }
-
-    .action-btn {
-      margin: 0 3px;
-    }
-
-    .expand-icon {
-      transition: transform 0.3s;
-    }
-
-    .expanded .expand-icon {
-      transform: rotate(90deg);
-    }
-
-    .empty-state {
-      text-align: center;
-      padding: 60px 20px;
-    }
-
-    .empty-state i {
-      font-size: 4rem;
-      color: #bdc3c7;
-      margin-bottom: 20px;
-    }
-
-    .empty-state h5 {
-      color: #7f8c8d;
-      margin-bottom: 10px;
-    }
-
-    .empty-state p {
-      color: #95a5a6;
-    }
-
-    .table-actions {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-
-    .btn-add-sale {
-      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-      border: none;
-      padding: 12px 25px;
-      font-weight: 600;
-      box-shadow: 0 4px 15px rgba(17, 153, 142, 0.3);
-    }
-
-    .btn-add-sale:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(17, 153, 142, 0.4);
-    }
-
-    .status-badge {
-      padding: 5px 12px;
-      border-radius: 20px;
-      font-size: 0.8rem;
-      font-weight: 600;
-    }
-
-    .status-paid {
-      background: #d4edda;
-      color: #155724;
-    }
-
-    .customer-badge {
-      background: #e3f2fd;
-      color: #1976d2;
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-size: 0.85rem;
-      font-weight: 600;
-    }
-
-    .walk-in-badge {
-      background: #fff3cd;
-      color: #856404;
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-size: 0.85rem;
-      font-weight: 600;
-    }
-
-    @media (max-width: 768px) {
-      .stats-cards {
-        grid-template-columns: 1fr;
-      }
-
-      .search-filter-section {
-        flex-direction: column;
-      }
-
-      .search-filter-section input,
-      .search-filter-section select {
-        width: 100%;
-      }
+    
+    /* Make Bootstrap icons align with text */
+    .btn [data-feather] {
+        width: 16px;
+        height: 16px;
+        margin-top: -2px;
+        margin-right: 4px;
     }
   </style>
 </head>
-<body class="p-3">
+<body>
 
-  <!-- Page Header -->
-  <div class="page-header">
-    <div class="d-flex justify-content-between align-items-center">
+    <main class="main-content">
+  
+    <header class="main-header">
       <div>
-        <h2><i class="fas fa-shopping-cart me-2"></i>Sales Management</h2>
+        <h1>Sales Management</h1>
         <p class="text-muted mb-0">Record and track all your sales transactions</p>
       </div>
-      <button class="btn btn-success btn-add-sale" data-bs-toggle="modal" data-bs-target="#addSaleModal">
-        <i class="fas fa-plus me-2"></i>New Sale
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addSaleModal">
+        <i data-feather="plus" style="width:18px; height:18px;"></i>
+        New Sale
       </button>
-    </div>
-  </div>
+    </header>
 
-  <!-- Statistics Cards -->
-  <?php
-  // Get sales statistics
-  $stats_stmt = $conn->prepare("
-    SELECT 
-      COUNT(*) as total_sales,
-      COALESCE(SUM(total_amount), 0) as total_revenue,
-      COUNT(CASE WHEN sale_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 END) as sales_this_month,
-      AVG(total_amount) as avg_sale_value
-    FROM sales 
-    WHERE admin_id = ?
-  ");
-  $stats_stmt->bind_param('i', $admin_id);
-  $stats_stmt->execute();
-  $stats = $stats_stmt->get_result()->fetch_assoc();
-  $stats_stmt->close();
+    <?php
+    // NEW, CONSOLIDATED QUERIES FOR THE 4-CARD DASHBOARD
+    
+    // Query 1: Stats for This Month (Last 30 Days)
+    $month_stmt = $conn->prepare("
+      SELECT 
+        COALESCE(SUM(total_amount), 0) as revenue_this_month,
+        COUNT(*) as sales_this_month,
+        COUNT(DISTINCT customer_id) as new_customers_this_month
+      FROM sales 
+      WHERE admin_id = ? AND sale_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+    ");
+    $month_stmt->bind_param('i', $admin_id);
+    $month_stmt->execute();
+    $month_stats = $month_stmt->get_result()->fetch_assoc();
+    $month_stmt->close();
 
-  // Get unique customers count
-  $customers_stmt = $conn->prepare("
-    SELECT COUNT(DISTINCT customer_id) as unique_customers 
-    FROM sales 
-    WHERE admin_id = ? AND customer_id IS NOT NULL
-  ");
-  $customers_stmt->bind_param('i', $admin_id);
-  $customers_stmt->execute();
-  $customers_count = $customers_stmt->get_result()->fetch_assoc()['unique_customers'];
-  $customers_stmt->close();
+    // Query 2: Today's Sales
+    $today_stmt = $conn->prepare("
+      SELECT COUNT(*) as today_sales, COALESCE(SUM(total_amount), 0) as today_revenue
+      FROM sales 
+      WHERE admin_id = ? AND sale_date = CURDATE()
+    ");
+    $today_stmt->bind_param('i', $admin_id);
+    $today_stmt->execute();
+    $today = $today_stmt->get_result()->fetch_assoc();
+    $today_stmt->close();
 
-  // Get today's sales
-  $today_stmt = $conn->prepare("
-    SELECT COUNT(*) as today_sales, COALESCE(SUM(total_amount), 0) as today_revenue
-    FROM sales 
-    WHERE admin_id = ? AND sale_date = CURDATE()
-  ");
-  $today_stmt->bind_param('i', $admin_id);
-  $today_stmt->execute();
-  $today = $today_stmt->get_result()->fetch_assoc();
-  $today_stmt->close();
-  ?>
+    // Note: 'Total Outstanding' is not calculated as it requires a 'status' column 
+    // in your 'sales' table, which is a functionality change.
+    // We are using "Sales (This Month)" and "Active Customers" from your original logic.
+    
+    // Query 3: Get unique customers count (from your original logic)
+    $customers_stmt = $conn->prepare("
+        SELECT COUNT(DISTINCT customer_id) as unique_customers 
+        FROM sales 
+        WHERE admin_id = ? AND customer_id IS NOT NULL
+    ");
+    $customers_stmt->bind_param('i', $admin_id);
+    $customers_stmt->execute();
+    $customers_count = $customers_stmt->get_result()->fetch_assoc()['unique_customers'];
+    $customers_stmt->close();
 
-  <div class="stats-cards">
-    <div class="stat-card">
-      <h6>Total Sales</h6>
-      <div class="stat-value"><?= number_format($stats['total_sales']) ?></div>
-    </div>
-    <div class="stat-card" style="border-left-color: #27ae60;">
-      <h6>Total Revenue</h6>
-      <div class="stat-value">₹<?= number_format($stats['total_revenue'], 2) ?></div>
-    </div>
-    <div class="stat-card" style="border-left-color: #3498db;">
-      <h6>This Month</h6>
-      <div class="stat-value"><?= number_format($stats['sales_this_month']) ?></div>
-    </div>
-    <div class="stat-card" style="border-left-color: #e74c3c;">
-      <h6>Today's Sales</h6>
-      <div class="stat-value"><?= $today['today_sales'] ?></div>
-      <small class="text-muted">₹<?= number_format($today['today_revenue'], 2) ?></small>
-    </div>
-    <div class="stat-card" style="border-left-color: #f39c12;">
-      <h6>Avg Sale Value</h6>
-      <div class="stat-value">₹<?= number_format($stats['avg_sale_value'], 2) ?></div>
-    </div>
-    <div class="stat-card" style="border-left-color: #9b59b6;">
-      <h6>Active Customers</h6>
-      <div class="stat-value"><?= number_format($customers_count) ?></div>
-    </div>
-  </div>
+    // --- Sales Overview Chart Data (Last 30 Days) ---
+    $chart_data = [];
+    $max_revenue = 0;
+    
+    // Generate dates for the last 30 days
+    $dates = [];
+    for ($i = 29; $i >= 0; $i--) {
+        $dates[] = date('Y-m-d', strtotime("-$i days"));
+    }
 
-  <!-- Sales table -->
-  <div class="content-card">
-    <div class="table-actions">
-      <h5 class="mb-0"><i class="fas fa-receipt me-2"></i>Sales Transactions</h5>
-    </div>
+    // Query daily sales revenue
+    $chart_stmt = $conn->prepare("
+        SELECT 
+            DATE(sale_date) as sale_day, 
+            COALESCE(SUM(total_amount), 0) as daily_revenue
+        FROM sales 
+        WHERE admin_id = ? AND sale_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+        GROUP BY sale_day
+    ");
+    $chart_stmt->bind_param('i', $admin_id);
+    $chart_stmt->execute();
+    $chart_res = $chart_stmt->get_result();
+    
+    $daily_sales = [];
+    while($row = $chart_res->fetch_assoc()) {
+        $daily_sales[$row['sale_day']] = $row['daily_revenue'];
+    }
+    $chart_stmt->close();
 
-    <!-- Search and Filter -->
-    <div class="search-filter-section">
-      <input type="text" id="searchInput" placeholder="🔍 Search by ID or customer..." onkeyup="filterTable()">
-      <select id="customerFilter" onchange="filterTable()">
-        <option value="">All Customers</option>
-        <option value="walk-in">Walk-in Customers</option>
-        <?php
-        $cust_stmt = $conn->prepare("
-          SELECT DISTINCT c.id, c.name 
-          FROM customers c
-          INNER JOIN sales s ON c.id = s.customer_id
-          WHERE c.admin_id = ?
-          ORDER BY c.name
-        ");
-        $cust_stmt->bind_param('i', $admin_id);
-        $cust_stmt->execute();
-        $cust_res = $cust_stmt->get_result();
-        while($cust = $cust_res->fetch_assoc()) {
-          echo '<option value="'.$cust['id'].'">'.htmlspecialchars($cust['name']).'</option>';
+    // Consolidate data for all 30 days, filling in 0 for days with no sales and finding max
+    foreach ($dates as $date) {
+        $revenue = $daily_sales[$date] ?? 0;
+        $chart_data[$date] = $revenue;
+        if ($revenue > $max_revenue) {
+            $max_revenue = $revenue;
         }
-        $cust_stmt->close();
-        ?>
-      </select>
-      <input type="date" id="dateFromFilter" onchange="filterTable()">
-      <input type="date" id="dateToFilter" onchange="filterTable()">
-    </div>
+    }
+    // Set a minimum max_revenue to avoid division by zero if all sales are 0
+    if ($max_revenue == 0) $max_revenue = 1;
+    ?>
 
-    <div class="table-responsive">
-      <table class="table table-hover align-middle" id="salesTable">
-        <thead class="table-light">
-          <tr>
-            <th style="width: 50px;"></th>
-            <th style="width: 80px;">ID</th>
-            <th>Date</th>
-            <th>Customer</th>
-            <th>Items</th>
-            <th>Total Amount</th>
-            <th>Status</th>
-            <th style="width: 200px;">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php
-          $stmt = $conn->prepare("
-            SELECT s.id, s.sale_date, s.total_amount, s.customer_id,
-                   c.name AS customer_name,
-                   COUNT(si.id) as item_count
-            FROM sales s
-            LEFT JOIN customers c ON s.customer_id = c.id
-            LEFT JOIN sale_items si ON s.id = si.sale_id
-            WHERE s.admin_id = ?
-            GROUP BY s.id
-            ORDER BY s.sale_date DESC, s.id DESC
-          ");
-          $stmt->bind_param('i', $admin_id);
-          $stmt->execute();
-          $res = $stmt->get_result();
+    <section class="kpi-cards">
+        
+        <div class="kpi-card">
+            <div class="card-header">
+                <span class="card-title">Total Revenue (This Month)</span>
+                <i data-feather="credit-card" class="card-icon"></i>
+            </div>
+            <div class="card-value"><?= formatIndianCurrency($month_stats['revenue_this_month']) ?></div>
+            <div class="card-comparison">
+                <span class="neutral">Last 30 days</span>
+            </div>
+        </div>
+        
+        <div class="kpi-card">
+            <div class="card-header">
+                <span class="card-title">Today's Sales</span>
+                <i data-feather="calendar" class="card-icon"></i>
+            </div>
+            <div class="card-value"><?= formatIndianCurrency($today['today_revenue']) ?></div>
+            <div class="card-comparison">
+                <span class="neutral"><?= $today['today_sales'] ?> Transactions Today</span>
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="card-header">
+                <span class="card-title">Sales (This Month)</span>
+                <i data-feather="shopping-cart" class="card-icon"></i>
+            </div>
+            <div class="card-value"><?= number_format($month_stats['sales_this_month']) ?></div>
+            <div class="card-comparison">
+                <span class="neutral">Total sales in last 30 days</span>
+            </div>
+        </div>
+        
+        <div class="kpi-card">
+            <div class="card-header">
+                <span class="card-title">Active Customers</span>
+                <i data-feather="user-check" class="card-icon"></i>
+            </div>
+            <div class="card-value"><?= number_format($customers_count) ?></div>
+            <div class="card-comparison">
+                <span class="neutral">Total unique customers</span>
+            </div>
+        </div>
+
+    </section>
+
+    <section class="main-chart">
+        <h2>Sales Overview (Last 30 Days)</h2>
+        <div class="chart-container">
+            <?php foreach ($chart_data as $date => $revenue): 
+                $height_percent = ($revenue / $max_revenue) * 100;
+                // Ensure a minimum visibility for bars with revenue > 0
+                if ($revenue > 0 && $height_percent < 1) $height_percent = 1;
+                // Ensure 0 revenue days show a very small bar (for date visibility)
+                if ($revenue == 0) $height_percent = 0.5;
+            ?>
+            <div class="chart-bar" 
+                 style="height: <?= round($height_percent, 1) ?>%;" 
+                 title="<?= date('M d, Y', strtotime($date)) ?>: ₹<?= number_format($revenue, 2) ?>">
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <div class="d-flex justify-content-between text-secondary mt-2 px-3" style="font-size: 0.75rem;">
+            <span><?= date('M d', strtotime(array_key_first($chart_data))) ?></span>
+            <span><?= date('M d', strtotime(array_key_last($chart_data))) ?> (Today)</span>
+        </div>
+    </section>
+
+    <section class="transactions-section">
+        <div class="table-header">
+          <h2>Sales Transactions</h2>
           
-          if($res->num_rows > 0):
-            while($row = $res->fetch_assoc()):
-              $sale_id = $row['id'];
-              
-              $items_stmt = $conn->prepare("
-                SELECT si.*, pr.name as product_name, pr.has_mrp, pr.mrp
-                FROM sale_items si
-                JOIN products pr ON si.product_id = pr.id
-                WHERE si.sale_id = ?
-              ");
-              $items_stmt->bind_param('i', $sale_id);
-              $items_stmt->execute();
-              $items_res = $items_stmt->get_result();
-              $items = [];
-              while($item = $items_res->fetch_assoc()) {
-                $items[] = $item;
-              }
-              $items_stmt->close();
-              
-              $customer_name = $row['customer_name'] ?? 'Walk-in Customer';
-              $is_walk_in = empty($row['customer_id']);
-          ?>
-          <tr class="sale-row" onclick="toggleDetails(<?= $sale_id ?>)" 
-              data-customer="<?= $row['customer_id'] ?? 'walk-in' ?>"
-              data-date="<?= $row['sale_date'] ?>">
-            <td class="text-center">
-              <i class="fas fa-chevron-right expand-icon" id="icon-<?= $sale_id ?>"></i>
-            </td>
-            <td><strong>#<?= str_pad($row['id'], 4, '0', STR_PAD_LEFT) ?></strong></td>
-            <td><?= date('M d, Y', strtotime($row['sale_date'])) ?></td>
-            <td>
-              <?php if($is_walk_in): ?>
-                <span class="walk-in-badge"><i class="fas fa-user me-1"></i>Walk-in</span>
-              <?php else: ?>
-                <span class="customer-badge"><i class="fas fa-user-tie me-1"></i><?= htmlspecialchars($customer_name) ?></span>
-              <?php endif; ?>
-            </td>
-            <td>
-              <span class="badge bg-info"><?= $row['item_count'] ?> items</span>
-            </td>
-            <td><strong class="text-success">₹<?= number_format($row['total_amount'], 2) ?></strong></td>
-            <td><span class="status-badge status-paid">Paid</span></td>
-            <td>
-              <button class="btn btn-sm btn-success action-btn" 
-                      onclick="event.stopPropagation(); window.open('sale_invoice.php?id=<?= $sale_id ?>', '_blank')"
-                      title="View Invoice">
-                <i class="fas fa-file-invoice"></i> Invoice
-              </button>
-              <button class="btn btn-sm btn-danger action-btn" 
-                      onclick="event.stopPropagation(); deleteSale(<?= $sale_id ?>)"
-                      title="Delete Sale">
-                <i class="fas fa-trash"></i>
-              </button>
-            </td>
-          </tr>
-          <tr class="details-row" id="details-<?= $sale_id ?>">
-            <td colspan="8">
-              <div class="p-3">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                  <h6 class="mb-0"><i class="fas fa-shopping-bag me-2"></i>Sold Items</h6>
-                  <small class="text-muted">Sale Date: <?= date('F d, Y', strtotime($row['sale_date'])) ?></small>
-                </div>
-                <table class="table table-sm table-striped details-table">
-                  <thead>
-                    <tr>
-                      <th>Product</th>
-                      <th>Quantity</th>
-                      <th>Unit Price</th>
-                      <th>Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <?php foreach($items as $item): ?>
-                    <tr>
-                      <td>
-                        <?= htmlspecialchars($item['product_name']) ?>
-                        <?php if($item['has_mrp'] && $item['mrp'] > 0): ?>
-                          <span class="badge bg-warning text-dark ms-2">MRP</span>
-                        <?php endif; ?>
-                      </td>
-                      <td><strong><?= $item['quantity'] ?></strong></td>
-                      <td>₹<?= number_format($item['unit_price'], 2) ?></td>
-                      <td><strong>₹<?= number_format($item['subtotal'], 2) ?></strong></td>
-                    </tr>
-                    <?php endforeach; ?>
-                    <tr class="table-active">
-                      <td colspan="3" class="text-end"><strong>Total:</strong></td>
-                      <td><strong class="text-success">₹<?= number_format($row['total_amount'], 2) ?></strong></td>
-                    </tr>
-                  </tbody>
-                </table>
+          <div class="table-filters">
+              <div class="search-bar">
+                  <i data-feather="search" class="search-icon"></i>
+                  <input type="text" id="searchInput" placeholder="Search by ID or customer..." onkeyup="filterTable()">
               </div>
-            </td>
-          </tr>
-          <?php 
-            endwhile;
-          else:
-          ?>
-          <tr>
-            <td colspan="8">
-              <div class="empty-state">
-                <i class="fas fa-shopping-cart"></i>
-                <h5>No Sales Yet</h5>
-                <p>Start recording your first sale transaction</p>
-                <button class="btn btn-success mt-3" data-bs-toggle="modal" data-bs-target="#addSaleModal">
-                  <i class="fas fa-plus me-2"></i>Record Sale
-                </button>
-              </div>
-            </td>
-          </tr>
-          <?php 
-          endif;
-          $stmt->close();
-          ?>
-        </tbody>
-      </table>
-    </div>
-  </div>
+              <select id="customerFilter" onchange="filterTable()">
+                <option value="">All Customers</option>
+                <option value="walk-in">Walk-in Customers</option>
+                <?php
+                $cust_stmt = $conn->prepare("
+                  SELECT DISTINCT c.id, c.name 
+                  FROM customers c
+                  INNER JOIN sales s ON c.id = s.customer_id
+                  WHERE c.admin_id = ?
+                  ORDER BY c.name
+                ");
+                $cust_stmt->bind_param('i', $admin_id);
+                $cust_stmt->execute();
+                $cust_res = $cust_stmt->get_result();
+                while($cust = $cust_res->fetch_assoc()) {
+                  echo '<option value="'.$cust['id'].'">'.htmlspecialchars($cust['name']).'</option>';
+                }
+                $cust_stmt->close();
+                ?>
+              </select>
+              <input type="date" id="dateFromFilter" onchange="filterTable()" title="Date From">
+              <input type="date" id="dateToFilter" onchange="filterTable()" title="Date To">
+          </div>
+        </div>
 
-  <!-- Add Sale Modal -->
+        <div class="table-container">
+          <table class="table table-hover align-middle transactions-table" id="salesTable">
+            <thead>
+              <tr>
+                <th style="width: 50px;"></th>
+                <th style="width: 80px;">ID</th>
+                <th>Date</th>
+                <th>Customer</th>
+                <th>Items</th>
+                <th>Total Amount</th>
+                <th>Status</th>
+                <th style="width: 120px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php
+              $stmt = $conn->prepare("
+                SELECT s.id, s.sale_date, s.total_amount, s.customer_id,
+                       c.name AS customer_name,
+                       COUNT(si.id) as item_count
+                FROM sales s
+                LEFT JOIN customers c ON s.customer_id = c.id
+                LEFT JOIN sale_items si ON s.id = si.sale_id
+                WHERE s.admin_id = ?
+                GROUP BY s.id
+                ORDER BY s.sale_date DESC, s.id DESC
+              ");
+              $stmt->bind_param('i', $admin_id);
+              $stmt->execute();
+              $res = $stmt->get_result();
+              
+              if($res->num_rows > 0):
+                while($row = $res->fetch_assoc()):
+                  $sale_id = $row['id'];
+                  
+                  $items_stmt = $conn->prepare("
+                    SELECT si.*, pr.name as product_name, pr.has_mrp, pr.mrp
+                    FROM sale_items si
+                    JOIN products pr ON si.product_id = pr.id
+                    WHERE si.sale_id = ?
+                  ");
+                  $items_stmt->bind_param('i', $sale_id);
+                  $items_stmt->execute();
+                  $items_res = $items_stmt->get_result();
+                  $items = [];
+                  while($item = $items_res->fetch_assoc()) {
+                    $items[] = $item;
+                  }
+                  $items_stmt->close();
+                  
+                  $customer_name = $row['customer_name'] ?? 'Walk-in Customer';
+                  $is_walk_in = empty($row['customer_id']);
+              ?>
+              <tr class="sale-row" onclick="toggleDetails(<?= $sale_id ?>)" 
+                  data-customer="<?= $row['customer_id'] ?? 'walk-in' ?>"
+                  data-date="<?= $row['sale_date'] ?>">
+                <td class="text-center">
+                  <i data-feather="chevron-right" class="expand-icon" id="icon-<?= $sale_id ?>"></i>
+                </td>
+                <td><strong>#<?= str_pad($row['id'], 4, '0', STR_PAD_LEFT) ?></strong></td>
+                <td><?= date('M d, Y', strtotime($row['sale_date'])) ?></td>
+                <td>
+                  <?php if($is_walk_in): ?>
+                    <span class="badge-clean badge-yellow"><?= htmlspecialchars($customer_name) ?></span>
+                  <?php else: ?>
+                    <span class="badge-clean badge-blue"><?= htmlspecialchars($customer_name) ?></span>
+                  <?php endif; ?>
+                </td>
+                <td>
+                  <span class="badge-clean badge-gray"><?= $row['item_count'] ?> items</span>
+                </td>
+                <td><strong>₹<?= number_format($row['total_amount'], 2) ?></strong></td>
+                <td>
+                  <span class="status status-paid">
+                    <span class="status-dot"></span>Paid
+                  </span>
+                </td>
+                <td class="table-actions">
+                  <button class="action-btn" 
+                          onclick="event.stopPropagation(); window.open('sale_invoice.php?id=<?= $sale_id ?>', '_blank')"
+                          title="View Invoice">
+                    <i data-feather="download"></i>
+                  </button>
+                  <button class="action-btn action-btn-delete" 
+                          onclick="event.stopPropagation(); deleteSale(<?= $sale_id ?>)"
+                          title="Delete Sale">
+                    <i data-feather="trash-2"></i>
+                  </button>
+                </td>
+              </tr>
+              <tr class="details-row" id="details-<?= $sale_id ?>">
+                <td colspan="8">
+                  <div class="details-content">
+                    <h6 class="mb-0"><i data-feather="package" style="width:18px; margin-top:-2px;"></i> Sold Items</h6>
+                    <table class="table table-sm details-table">
+                      <thead>
+                        <tr>
+                          <th>Product</th>
+                          <th>Quantity</th>
+                          <th>Unit Price</th>
+                          <th>Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <?php foreach($items as $item): ?>
+                        <tr>
+                          <td>
+                            <?= htmlspecialchars($item['product_name']) ?>
+                            <?php if($item['has_mrp'] && $item['mrp'] > 0): ?>
+                              <span class="badge-clean badge-yellow ms-2">MRP</span>
+                            <?php endif; ?>
+                          </td>
+                          <td><strong><?= $item['quantity'] ?></strong></td>
+                          <td>₹<?= number_format($item['unit_price'], 2) ?></td>
+                          <td><strong>₹<?= number_format($item['subtotal'], 2) ?></strong></td>
+                        </tr>
+                        <?php endforeach; ?>
+                        <tr class="table-light">
+                          <td colspan="3" class="text-end"><strong>Total:</strong></td>
+                          <td><strong>₹<?= number_format($row['total_amount'], 2) ?></strong></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </td>
+              </tr>
+              <?php 
+                endwhile;
+              else:
+              ?>
+              <tr>
+                <td colspan="8">
+                  <div class="empty-state">
+                    <i data-feather="shopping-cart" class="empty-icon"></i>
+                    <h5>No Sales Yet</h5>
+                    <p>Start recording your first sale transaction</p>
+                    <button class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#addSaleModal">
+                      <i data-feather="plus"></i>Record Sale
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <?php 
+              endif;
+              $stmt->close();
+              ?>
+            </tbody>
+          </table>
+        </div>
+    </section>
+  </main>
   <div class="modal fade" id="addSaleModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl">
       <div class="modal-content">
         <form id="saleForm">
           <div class="modal-header">
-            <h5 class="modal-title"><i class="fas fa-shopping-cart me-2"></i>Record New Sale</h5>
+            <h5 class="modal-title"><i data-feather="shopping-cart"></i>Record New Sale</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
 
@@ -506,7 +924,7 @@ $admin_id = $_SESSION['admin_id'];
                 <div class="input-group">
                   <select id="customerSelect" name="customer_id" class="form-select"></select>
                   <button type="button" class="btn btn-outline-secondary" id="addCustomerBtn">
-                    <i class="fas fa-plus"></i> New
+                    <i data-feather="plus" style="margin-right:0;"></i>
                   </button>
                 </div>
                 <small class="text-muted">Leave blank for walk-in customers</small>
@@ -518,8 +936,8 @@ $admin_id = $_SESSION['admin_id'];
             </div>
 
             <div class="card mb-3">
-              <div class="card-header bg-light">
-                <h6 class="mb-0"><i class="fas fa-shopping-bag me-2"></i>Sale Items</h6>
+              <div class="card-header">
+                <h6 class="mb-0"><i data-feather="package" style="width:16px; margin-top: -2px; margin-right: 4px;"></i>Sale Items</h6>
               </div>
               <div class="card-body">
                 <div class="table-responsive">
@@ -538,7 +956,7 @@ $admin_id = $_SESSION['admin_id'];
                   </table>
                 </div>
                 <button type="button" class="btn btn-secondary btn-sm" id="addRowBtn">
-                  <i class="fas fa-plus me-1"></i> Add Product
+                  <i data-feather="plus"></i> Add Product
                 </button>
               </div>
             </div>
@@ -574,7 +992,7 @@ $admin_id = $_SESSION['admin_id'];
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
             <button type="submit" class="btn btn-success">
-              <i class="fas fa-save me-2"></i>Complete Sale
+              Complete Sale
             </button>
           </div>
         </form>
@@ -582,13 +1000,12 @@ $admin_id = $_SESSION['admin_id'];
     </div>
   </div>
 
-  <!-- Add Customer Modal -->
   <div class="modal fade" id="addCustomerModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <form id="customerForm" novalidate>
           <div class="modal-header">
-            <h5 class="modal-title"><i class="fas fa-user-plus me-2"></i>Add New Customer</h5>
+            <h5 class="modal-title"><i data-feather="user-plus"></i>Add New Customer</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
@@ -635,8 +1052,8 @@ $admin_id = $_SESSION['admin_id'];
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-primary">
-              <i class="fas fa-save me-2"></i>Save Customer
+            <button type="submit" class="btn btn-primary" style="background-color: var(--brand-blue); border-color: var(--brand-blue);">
+              <i data-feather="save"></i>Save Customer
             </button>
           </div>
         </form>
@@ -671,7 +1088,35 @@ $admin_id = $_SESSION['admin_id'];
     
     return isValid;
   }
-
+  
+   function formatIndianCurrency(number) {
+        const num = parseFloat(number);
+        if (isNaN(num)) return '₹0.00';
+        
+        const parts = num.toFixed(2).split('.');
+        let integerPart = parts[0];
+        const decimalPart = parts[1];
+        
+        const isNegative = integerPart.startsWith('-');
+        if (isNegative) {
+            integerPart = integerPart.substring(1);
+        }
+        
+        let lastThree = integerPart.substring(integerPart.length - 3);
+        let otherNumbers = integerPart.substring(0, integerPart.length - 3);
+        
+        if (otherNumbers !== '') {
+            lastThree = ',' + lastThree;
+        }
+        
+        let result = otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + lastThree;
+        
+        if (isNegative) {
+            result = '-' + result;
+        }
+        
+        return '₹' + result + '.' + decimalPart;
+    }
   // Filter table function
   function filterTable() {
     const searchValue = document.getElementById('searchInput').value.toLowerCase();
@@ -701,7 +1146,12 @@ $admin_id = $_SESSION['admin_id'];
       } else {
         row.style.display = 'none';
         const detailsRow = document.getElementById('details-' + row.onclick?.toString().match(/\d+/)?.[0]);
-        if (detailsRow) detailsRow.style.display = 'none';
+        if (detailsRow) {
+            detailsRow.style.display = 'none';
+            // Also reset the expand icon
+            const icon = document.getElementById('icon-' + row.onclick?.toString().match(/\d+/)?.[0]);
+            if (icon) icon.closest('tr').classList.remove('expanded');
+        }
       }
     }
   }
@@ -749,6 +1199,9 @@ $admin_id = $_SESSION['admin_id'];
   $(document).ready(function() {
     addCustomerModal = new bootstrap.Modal(document.getElementById('addCustomerModal'));
     addSaleModal = new bootstrap.Modal(document.getElementById('addSaleModal'));
+    
+    // Activate Feather Icons on initial load
+    feather.replace();
   });
 
   $('#addSaleModal').on('show.bs.modal', function() {
@@ -759,6 +1212,10 @@ $admin_id = $_SESSION['admin_id'];
         products = data;
       });
     }
+    // Reset form
+    $('#saleForm')[0].reset();
+    $('#saleItemsTable tbody').empty();
+    updateTotals();
   });
 
   function loadCustomers() {
@@ -875,13 +1332,19 @@ $admin_id = $_SESSION['admin_id'];
             ${products.map(p => `<option value="${p.id}" data-price="${p.selling_price}" data-stock="${p.stock}">${p.name}</option>`).join('')}
           </select>
         </td>
-        <td class="availableStock text-center"><span class="badge bg-secondary">-</span></td>
+        <td class="availableStock text-center"><span class="badge-clean badge-gray">-</span></td>
         <td><input type="number" name="quantity[]" class="form-control qtyInput" min="1" value="1" required></td>
         <td><input type="number" name="unit_price[]" class="form-control priceInput" min="0" step="0.01" required></td>
-        <td class="subtotal">₹0.00</td>
-        <td><button type="button" class="btn btn-sm btn-danger removeRow"><i class="fas fa-times"></i></button></td>
+        <td class="subtotal" style="font-weight: 500;">₹0.00</td>
+        <td>
+          <button type="button" class="btn btn-sm btn-outline-danger removeRow">
+            <i data-feather="x" style="width:16px; height:16px; margin:0;"></i>
+          </button>
+        </td>
       </tr>`;
     $('#saleItemsTable tbody').append(row);
+    // Re-run Feather Icons to render the new 'x' icon
+    feather.replace();
   });
 
   $(document).on('change', '.productSelect', function() {
@@ -894,12 +1357,12 @@ $admin_id = $_SESSION['admin_id'];
     // Update available stock display
     if (stock > 0) {
       if (stock <= 20) {
-        $row.find('.availableStock').html(`<span class="badge bg-warning text-dark">${stock} left</span>`);
+        $row.find('.availableStock').html(`<span class="badge-clean badge-yellow">${stock} left</span>`);
       } else {
-        $row.find('.availableStock').html(`<span class="badge bg-success">${stock} available</span>`);
+        $row.find('.availableStock').html(`<span class="badge-clean badge-clean" style="background-color: #ECFDF5; color: #065F46;">${stock} available</span>`);
       }
     } else {
-      $row.find('.availableStock').html(`<span class="badge bg-danger">Out of stock</span>`);
+      $row.find('.availableStock').html(`<span class="badge-clean" style="background-color: #FEF2F2; color: #991B1B;">Out of stock</span>`);
     }
     
     // Set max quantity
@@ -937,13 +1400,13 @@ $admin_id = $_SESSION['admin_id'];
       const qty = parseFloat($(this).find('.qtyInput').val()) || 0;
       const price = parseFloat($(this).find('.priceInput').val()) || 0;
       const subtotal = qty * price;
-      $(this).find('.subtotal').text('₹' + subtotal.toFixed(2));
+      $(this).find('.subtotal').text(formatIndianCurrency(subtotal));
       grandTotal += subtotal;
       itemCount++;
       totalQty += qty;
     });
     
-    $('#grandTotal').text(grandTotal.toFixed(2));
+    $('#grandTotal').text(formatIndianCurrency(grandTotal).replace('₹', ''));
     $('#itemCount').text(itemCount);
     $('#totalQty').text(totalQty);
   }
@@ -995,6 +1458,10 @@ $admin_id = $_SESSION['admin_id'];
       }
     });
   });
+
+  // Finally, run feather.replace one more time to catch any icons
+  // that might have been missed (e.g., in empty state)
+  feather.replace();
   </script>
 
 </body>
