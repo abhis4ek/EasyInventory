@@ -5,6 +5,26 @@ if (!isset($_SESSION['admin_id'])) {
     exit();
 }
 require 'db.php';
+
+// Indian currency formatting function (PHP)
+function formatIndianCurrency($number) {
+    $number = number_format($number, 2, '.', '');
+    $parts = explode('.', $number);
+    $integerPart = $parts[0];
+    $decimalPart = $parts[1];
+    
+    $lastThree = substr($integerPart, -3);
+    $otherNumbers = substr($integerPart, 0, -3);
+    
+    if ($otherNumbers != '') {
+        $lastThree = ',' . $lastThree;
+    }
+    
+    $result = preg_replace('/\B(?=(\d{2})+(?!\d))/', ',', $otherNumbers) . $lastThree;
+    
+    return '₹' . $result . '.' . $decimalPart;
+}
+
 $admin_id = $_SESSION['admin_id'];
 $fullname = $_SESSION['fullname'] ?? 'Admin User';
 
@@ -283,7 +303,6 @@ $stmt->close();
         <h2 class="page-title"> Stock Alerts & Notifications</h2>
     </div>
 
-    <!-- Low Stock Products -->
     <div class="content-section">
         <div class="section-header">
             <h3 class="section-title">
@@ -317,7 +336,7 @@ $stmt->close();
                                 <i class="fas fa-exclamation-triangle"></i> Low Stock
                             </span>
                         </td>
-                        <td>₹<?= number_format($product['cost_price'], 2) ?></td>
+                        <td><?= formatIndianCurrency($product['cost_price']) ?></td>
                         <td>
                             <?php if($product['last_supplier_name']): ?>
                                 <span class="supplier-badge"><?= htmlspecialchars($product['last_supplier_name']) ?></span>
@@ -345,7 +364,6 @@ $stmt->close();
         <?php endif; ?>
     </div>
 
-    <!-- Out of Stock Products -->
     <div class="content-section">
         <div class="section-header">
             <h3 class="section-title">
@@ -379,7 +397,7 @@ $stmt->close();
                                 <i class="fas fa-times-circle"></i> Out of Stock
                             </span>
                         </td>
-                        <td>₹<?= number_format($product['cost_price'], 2) ?></td>
+                        <td><?= formatIndianCurrency($product['cost_price']) ?></td>
                         <td>
                             <?php if($product['last_supplier_name']): ?>
                                 <span class="supplier-badge"><?= htmlspecialchars($product['last_supplier_name']) ?></span>

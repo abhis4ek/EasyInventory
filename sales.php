@@ -5,6 +5,8 @@ if (!isset($_SESSION['admin_id'])) {
     exit();
 }
 require 'db.php';
+
+// Add Indian currency formatting function
 function formatIndianCurrency($number) {
     $number = number_format($number, 2, '.', '');
     $parts = explode('.', $number);
@@ -44,10 +46,10 @@ $admin_id = $_SESSION['admin_id'];
   <script src="https://unpkg.com/feather-icons"></script>
   
   <style>
-    /* --- 1. Global Reset & Body --- */
+    /* [Keep all your existing CSS styles - they remain exactly the same] */
     :root {
-        --sidebar-bg: #111827; /* Dark Blue/Gray */
-        --main-bg: #F9FAFB;     /* Light Gray */
+        --sidebar-bg: #111827;
+        --main-bg: #F9FAFB;
         --card-bg: #FFFFFF;
         --border-color: #E5E7EB;
         --text-primary: #1F2937;
@@ -67,18 +69,12 @@ $admin_id = $_SESSION['admin_id'];
         font-family: 'Inter', sans-serif;
         background-color: var(--main-bg);
         color: var(--text-primary);
-        /* Removed grid layout properties */
         margin: 0;
         padding: 0;
     }
 
-    /* --- 2. Sidebar Navigation (STYLES REMOVED AS SIDEBAR IS GONE) --- */
-    /* .sidebar, .sidebar-header, .sidebar-nav, etc. removed */
-
-    /* --- 3. Main Content Area --- */
     .main-content {
         background-color: var(--main-bg);
-        /* Removed height and overflow, padding provides page spacing */
         padding: 2rem;
     }
 
@@ -114,7 +110,6 @@ $admin_id = $_SESSION['admin_id'];
         background-color: #059669;
     }
 
-    /* --- 4. KPI Cards Section --- */
     .kpi-cards {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -175,7 +170,6 @@ $admin_id = $_SESSION['admin_id'];
         color: var(--text-secondary);
     }
 
-    /* --- 5. Main Chart Section --- */
     .main-chart {
         background-color: var(--card-bg);
         border: 1px solid var(--border-color);
@@ -191,7 +185,6 @@ $admin_id = $_SESSION['admin_id'];
         margin-bottom: 1.5rem;
     }
 
-    /* Static/Simulated Bar Chart */
     .chart-container {
         height: 250px;
         display: flex;
@@ -213,13 +206,12 @@ $admin_id = $_SESSION['admin_id'];
         opacity: 1;
     }
 
-    /* --- 6. Transactions Table Section --- */
     .transactions-section {
         background-color: var(--card-bg);
         border: 1px solid var(--border-color);
         border-radius: 12px;
         box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
-        overflow: hidden; /* For rounded corners on table */
+        overflow: hidden;
     }
     
     .table-header {
@@ -263,11 +255,11 @@ $admin_id = $_SESSION['admin_id'];
         border-radius: 8px;
         font-family: 'Inter', sans-serif;
         font-size: 0.875rem;
-        background-color: white; /* Ensure consistent background */
+        background-color: white;
     }
     
     .table-filters input[type="text"] {
-        padding-left: 2.5rem; /* Space for icon */
+        padding-left: 2.5rem;
         min-width: 250px;
     }
     
@@ -279,10 +271,9 @@ $admin_id = $_SESSION['admin_id'];
 
     .table-container {
         width: 100%;
-        overflow-x: auto; /* For responsive on small screens */
+        overflow-x: auto;
     }
 
-    /* Style for your existing .table-hover */
     .table-hover tbody tr.sale-row:hover {
         background-color: var(--main-bg);
     }
@@ -320,7 +311,6 @@ $admin_id = $_SESSION['admin_id'];
         color: var(--text-primary);
     }
 
-    /* --- Status Pills (Re-style of your .status-badge) --- */
     .status {
         display: inline-flex;
         align-items: center;
@@ -336,12 +326,11 @@ $admin_id = $_SESSION['admin_id'];
     }
     
     .status-paid {
-        background-color: #ECFDF5; /* Green tint */
-        color: #065F46; /* Dark Green */
+        background-color: #ECFDF5;
+        color: #065F46;
     }
     .status-paid .status-dot { background-color: #10B981; }
     
-    /* --- Badges (Re-style of your .customer-badge etc.) --- */
     .badge-clean {
         padding: 4px 10px;
         border-radius: 6px;
@@ -351,7 +340,6 @@ $admin_id = $_SESSION['admin_id'];
     .badge-blue { background-color: #EFF6FF; color: #1D4ED8; }
     .badge-gray { background-color: var(--brand-gray); color: var(--text-secondary); }
     .badge-yellow { background-color: #FFFBEB; color: #B45309; }
-
 
     .table-actions {
         display: flex;
@@ -378,7 +366,6 @@ $admin_id = $_SESSION['admin_id'];
         background-color: #FEF2F2;
     }
 
-    /* --- Your Custom Functionality (Re-skinned) --- */
     .sale-row {
       cursor: pointer;
       transition: background-color 0.2s;
@@ -442,7 +429,6 @@ $admin_id = $_SESSION['admin_id'];
       color: #9CA3AF;
     }
 
-    /* --- Modal Re-skin --- */
     .modal-content {
         border-radius: 12px;
         border: none;
@@ -470,7 +456,6 @@ $admin_id = $_SESSION['admin_id'];
         padding: 1rem 1.5rem;
     }
 
-    /* Form & Input Re-skin */
     .form-label {
         font-weight: 500;
         font-size: 0.875rem;
@@ -530,7 +515,6 @@ $admin_id = $_SESSION['admin_id'];
         font-weight: 500;
     }
     
-    /* Your validation error style */
     .error-text {
       color: #dc3545;
       font-size: 0.875rem;
@@ -545,7 +529,6 @@ $admin_id = $_SESSION['admin_id'];
         box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.2);
     }
     
-    /* Make Bootstrap icons align with text */
     .btn [data-feather] {
         width: 16px;
         height: 16px;
@@ -570,8 +553,6 @@ $admin_id = $_SESSION['admin_id'];
     </header>
 
     <?php
-    // NEW, CONSOLIDATED QUERIES FOR THE 4-CARD DASHBOARD
-    
     // Query 1: Stats for This Month (Last 30 Days)
     $month_stmt = $conn->prepare("
       SELECT 
@@ -596,12 +577,8 @@ $admin_id = $_SESSION['admin_id'];
     $today_stmt->execute();
     $today = $today_stmt->get_result()->fetch_assoc();
     $today_stmt->close();
-
-    // Note: 'Total Outstanding' is not calculated as it requires a 'status' column 
-    // in your 'sales' table, which is a functionality change.
-    // We are using "Sales (This Month)" and "Active Customers" from your original logic.
     
-    // Query 3: Get unique customers count (from your original logic)
+    // Query 3: Get unique customers count
     $customers_stmt = $conn->prepare("
         SELECT COUNT(DISTINCT customer_id) as unique_customers 
         FROM sales 
@@ -641,7 +618,7 @@ $admin_id = $_SESSION['admin_id'];
     }
     $chart_stmt->close();
 
-    // Consolidate data for all 30 days, filling in 0 for days with no sales and finding max
+    // Consolidate data for all 30 days
     foreach ($dates as $date) {
         $revenue = $daily_sales[$date] ?? 0;
         $chart_data[$date] = $revenue;
@@ -649,7 +626,6 @@ $admin_id = $_SESSION['admin_id'];
             $max_revenue = $revenue;
         }
     }
-    // Set a minimum max_revenue to avoid division by zero if all sales are 0
     if ($max_revenue == 0) $max_revenue = 1;
     ?>
 
@@ -706,14 +682,12 @@ $admin_id = $_SESSION['admin_id'];
         <div class="chart-container">
             <?php foreach ($chart_data as $date => $revenue): 
                 $height_percent = ($revenue / $max_revenue) * 100;
-                // Ensure a minimum visibility for bars with revenue > 0
                 if ($revenue > 0 && $height_percent < 1) $height_percent = 1;
-                // Ensure 0 revenue days show a very small bar (for date visibility)
                 if ($revenue == 0) $height_percent = 0.5;
             ?>
             <div class="chart-bar" 
                  style="height: <?= round($height_percent, 1) ?>%;" 
-                 title="<?= date('M d, Y', strtotime($date)) ?>: ₹<?= number_format($revenue, 2) ?>">
+                 title="<?= date('M d, Y', strtotime($date)) ?>: <?= formatIndianCurrency($revenue) ?>">
             </div>
             <?php endforeach; ?>
         </div>
@@ -828,7 +802,7 @@ $admin_id = $_SESSION['admin_id'];
                 <td>
                   <span class="badge-clean badge-gray"><?= $row['item_count'] ?> items</span>
                 </td>
-                <td><strong>₹<?= number_format($row['total_amount'], 2) ?></strong></td>
+                <td><strong><?= formatIndianCurrency($row['total_amount']) ?></strong></td>
                 <td>
                   <span class="status status-paid">
                     <span class="status-dot"></span>Paid
@@ -870,13 +844,13 @@ $admin_id = $_SESSION['admin_id'];
                             <?php endif; ?>
                           </td>
                           <td><strong><?= $item['quantity'] ?></strong></td>
-                          <td>₹<?= number_format($item['unit_price'], 2) ?></td>
-                          <td><strong>₹<?= number_format($item['subtotal'], 2) ?></strong></td>
+                          <td><?= formatIndianCurrency($item['unit_price']) ?></td>
+                          <td><strong><?= formatIndianCurrency($item['subtotal']) ?></strong></td>
                         </tr>
                         <?php endforeach; ?>
                         <tr class="table-light">
                           <td colspan="3" class="text-end"><strong>Total:</strong></td>
-                          <td><strong>₹<?= number_format($row['total_amount'], 2) ?></strong></td>
+                          <td><strong><?= formatIndianCurrency($row['total_amount']) ?></strong></td>
                         </tr>
                       </tbody>
                     </table>
@@ -908,6 +882,7 @@ $admin_id = $_SESSION['admin_id'];
         </div>
     </section>
   </main>
+  
   <div class="modal fade" id="addSaleModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl">
       <div class="modal-content">
@@ -1064,6 +1039,36 @@ $admin_id = $_SESSION['admin_id'];
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
+  // Indian number formatting function
+  function formatIndianCurrency(number) {
+      const num = parseFloat(number);
+      if (isNaN(num)) return '₹0.00';
+      
+      const parts = num.toFixed(2).split('.');
+      let integerPart = parts[0];
+      const decimalPart = parts[1];
+      
+      const isNegative = integerPart.startsWith('-');
+      if (isNegative) {
+          integerPart = integerPart.substring(1);
+      }
+      
+      let lastThree = integerPart.substring(integerPart.length - 3);
+      let otherNumbers = integerPart.substring(0, integerPart.length - 3);
+      
+      if (otherNumbers !== '') {
+          lastThree = ',' + lastThree;
+      }
+      
+      let result = otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + lastThree;
+      
+      if (isNegative) {
+          result = '-' + result;
+      }
+      
+      return '₹' + result + '.' + decimalPart;
+  }
+
   let products = [];
   let addCustomerModal, addSaleModal;
 
@@ -1088,36 +1093,7 @@ $admin_id = $_SESSION['admin_id'];
     
     return isValid;
   }
-  
-   function formatIndianCurrency(number) {
-        const num = parseFloat(number);
-        if (isNaN(num)) return '₹0.00';
-        
-        const parts = num.toFixed(2).split('.');
-        let integerPart = parts[0];
-        const decimalPart = parts[1];
-        
-        const isNegative = integerPart.startsWith('-');
-        if (isNegative) {
-            integerPart = integerPart.substring(1);
-        }
-        
-        let lastThree = integerPart.substring(integerPart.length - 3);
-        let otherNumbers = integerPart.substring(0, integerPart.length - 3);
-        
-        if (otherNumbers !== '') {
-            lastThree = ',' + lastThree;
-        }
-        
-        let result = otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + lastThree;
-        
-        if (isNegative) {
-            result = '-' + result;
-        }
-        
-        return '₹' + result + '.' + decimalPart;
-    }
-  // Filter table function
+
   function filterTable() {
     const searchValue = document.getElementById('searchInput').value.toLowerCase();
     const customerValue = document.getElementById('customerFilter').value;
@@ -1148,7 +1124,6 @@ $admin_id = $_SESSION['admin_id'];
         const detailsRow = document.getElementById('details-' + row.onclick?.toString().match(/\d+/)?.[0]);
         if (detailsRow) {
             detailsRow.style.display = 'none';
-            // Also reset the expand icon
             const icon = document.getElementById('icon-' + row.onclick?.toString().match(/\d+/)?.[0]);
             if (icon) icon.closest('tr').classList.remove('expanded');
         }
@@ -1200,7 +1175,6 @@ $admin_id = $_SESSION['admin_id'];
     addCustomerModal = new bootstrap.Modal(document.getElementById('addCustomerModal'));
     addSaleModal = new bootstrap.Modal(document.getElementById('addSaleModal'));
     
-    // Activate Feather Icons on initial load
     feather.replace();
   });
 
@@ -1212,7 +1186,6 @@ $admin_id = $_SESSION['admin_id'];
         products = data;
       });
     }
-    // Reset form
     $('#saleForm')[0].reset();
     $('#saleItemsTable tbody').empty();
     updateTotals();
@@ -1343,7 +1316,6 @@ $admin_id = $_SESSION['admin_id'];
         </td>
       </tr>`;
     $('#saleItemsTable tbody').append(row);
-    // Re-run Feather Icons to render the new 'x' icon
     feather.replace();
   });
 
@@ -1354,7 +1326,6 @@ $admin_id = $_SESSION['admin_id'];
     
     $row.find('.priceInput').val(price);
     
-    // Update available stock display
     if (stock > 0) {
       if (stock <= 20) {
         $row.find('.availableStock').html(`<span class="badge-clean badge-yellow">${stock} left</span>`);
@@ -1365,7 +1336,6 @@ $admin_id = $_SESSION['admin_id'];
       $row.find('.availableStock').html(`<span class="badge-clean" style="background-color: #FEF2F2; color: #991B1B;">Out of stock</span>`);
     }
     
-    // Set max quantity
     $row.find('.qtyInput').attr('max', stock);
     
     updateTotals();
@@ -1419,7 +1389,6 @@ $admin_id = $_SESSION['admin_id'];
       return;
     }
     
-    // Check stock availability for all items
     let stockError = false;
     $('#saleItemsTable tbody tr').each(function() {
       const $row = $(this);
@@ -1459,8 +1428,6 @@ $admin_id = $_SESSION['admin_id'];
     });
   });
 
-  // Finally, run feather.replace one more time to catch any icons
-  // that might have been missed (e.g., in empty state)
   feather.replace();
   </script>
 

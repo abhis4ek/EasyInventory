@@ -6,6 +6,25 @@ if (!isset($_SESSION['admin_id'])) {
 }
 require 'db.php';
 
+// Indian currency formatting function (PHP)
+function formatIndianCurrency($number) {
+    $number = number_format($number, 2, '.', '');
+    $parts = explode('.', $number);
+    $integerPart = $parts[0];
+    $decimalPart = $parts[1];
+    
+    $lastThree = substr($integerPart, -3);
+    $otherNumbers = substr($integerPart, 0, -3);
+    
+    if ($otherNumbers != '') {
+        $lastThree = ',' . $lastThree;
+    }
+    
+    $result = preg_replace('/\B(?=(\d{2})+(?!\d))/', ',', $otherNumbers) . $lastThree;
+    
+    return '₹' . $result . '.' . $decimalPart;
+}
+
 $admin_id = $_SESSION['admin_id'];
 $fullname = $_SESSION['fullname'] ?? 'Admin User';
 
@@ -561,15 +580,15 @@ $stmt->close();
                             <?php endif; ?>
                         </td>
                         <td><?php echo htmlspecialchars($product['category_name']); ?></td>
-                        <td>₹<?php echo number_format($product['cost_price'], 2); ?></td>
+                        <td><?php echo formatIndianCurrency($product['cost_price']); ?></td>
                         <td>
-                            ₹<?php echo number_format($product['selling_price'], 2); ?>
+                            <?php echo formatIndianCurrency($product['selling_price']); ?>
                             <?php if($product['has_mrp'] && $product['mrp'] > 0): ?>
-                                <br><small class="text-muted">MRP: ₹<?php echo number_format($product['mrp'], 2); ?></small>
+                                <br><small class="text-muted">MRP: <?php echo formatIndianCurrency($product['mrp']); ?></small>
                             <?php endif; ?>
                         </td>
                         <td style="color: <?php echo $profit > 0 ? '#388e3c' : '#d32f2f'; ?>">
-                            ₹<?php echo number_format($profit, 2); ?>
+                            <?php echo formatIndianCurrency($profit); ?>
                         </td>
                         <td><?php echo $product['stock']; ?></td>
                         <td>
@@ -598,7 +617,6 @@ $stmt->close();
         </div>
     </div>
 
-    <!-- Add Product Modal -->
     <div id="addProductModal" class="modal">
         <div class="modal-content" style="max-width: 650px;">
             <div class="modal-header">
@@ -702,7 +720,6 @@ $stmt->close();
         </div>
     </div>
 
-    <!-- Edit Product Modal -->
     <div id="editProductModal" class="modal">
         <div class="modal-content" style="max-width: 650px;">
             <div class="modal-header">
@@ -786,7 +803,6 @@ $stmt->close();
         </div>
     </div>
 
-    <!-- Add Category Modal -->
     <div id="addCategoryModal" class="modal">
         <div class="modal-content" style="max-width: 500px;">
             <div class="modal-header">
@@ -816,6 +832,36 @@ $stmt->close();
     </div>
 
     <script>
+    // Indian currency formatting function (JS)
+    function formatIndianCurrency(number) {
+        const num = parseFloat(number);
+        if (isNaN(num)) return '₹0.00';
+        
+        const parts = num.toFixed(2).split('.');
+        let integerPart = parts[0];
+        const decimalPart = parts[1];
+        
+        const isNegative = integerPart.startsWith('-');
+        if (isNegative) {
+            integerPart = integerPart.substring(1);
+        }
+        
+        let lastThree = integerPart.substring(integerPart.length - 3);
+        let otherNumbers = integerPart.substring(0, integerPart.length - 3);
+        
+        if (otherNumbers !== '') {
+            lastThree = ',' + lastThree;
+        }
+        
+        let result = otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + lastThree;
+        
+        if (isNegative) {
+            result = '-' + result;
+        }
+        
+        return '₹' + result + '.' + decimalPart;
+    }
+
 // Filter functionality
 function filterTable() {
     const searchValue = document.getElementById('searchInput').value.toLowerCase();
@@ -874,10 +920,10 @@ function calculatePricing() {
     const sellingPrice = parseFloat(document.getElementById('productSellingPrice').value) || 0;
     const profitMargin = parseFloat(document.getElementById('productProfitMargin').value) || 0;
     
-    document.getElementById('displayCostPrice').textContent = '₹' + costPrice.toFixed(2);
+    document.getElementById('displayCostPrice').textContent = formatIndianCurrency(costPrice);
     
     if (hasMrp) {
-        document.getElementById('displayMrp').textContent = '₹' + mrp.toFixed(2);
+        document.getElementById('displayMrp').textContent = formatIndianCurrency(mrp);
     }
     
     let finalSellingPrice = sellingPrice;
@@ -892,8 +938,8 @@ function calculatePricing() {
         finalProfit = profitMargin;
     }
     
-    document.getElementById('displayProfit').textContent = '₹' + finalProfit.toFixed(2);
-    document.getElementById('displaySellingPrice').textContent = '₹' + finalSellingPrice.toFixed(2);
+    document.getElementById('displayProfit').textContent = formatIndianCurrency(finalProfit);
+    document.getElementById('displaySellingPrice').textContent = formatIndianCurrency(finalSellingPrice);
     
     const mrpWarning = document.getElementById('mrpWarning');
     if (hasMrp && mrp > 0 && finalSellingPrice > mrp) {
@@ -1043,16 +1089,16 @@ function calculateEditPricing() {
     const mrp = hasMrp ? (parseFloat(document.getElementById('editProductMrp').value) || 0) : 0;
     const sellingPrice = parseFloat(document.getElementById('editProductSellingPrice').value) || 0;
     
-    document.getElementById('editDisplayCostPrice').textContent = '₹' + costPrice.toFixed(2);
+    document.getElementById('editDisplayCostPrice').textContent = formatIndianCurrency(costPrice);
     
     if (hasMrp) {
-        document.getElementById('editDisplayMrp').textContent = '₹' + mrp.toFixed(2);
+        document.getElementById('editDisplayMrp').textContent = formatIndianCurrency(mrp);
     }
     
     const profit = sellingPrice - costPrice;
     
-    document.getElementById('editDisplayProfit').textContent = '₹' + profit.toFixed(2);
-    document.getElementById('editDisplaySellingPrice').textContent = '₹' + sellingPrice.toFixed(2);
+    document.getElementById('editDisplayProfit').textContent = formatIndianCurrency(profit);
+    document.getElementById('editDisplaySellingPrice').textContent = formatIndianCurrency(sellingPrice);
     
     const mrpWarning = document.getElementById('editMrpWarning');
     if (hasMrp && mrp > 0 && sellingPrice > mrp) {

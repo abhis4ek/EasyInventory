@@ -6,6 +6,7 @@ if (!isset($_SESSION['admin_id'])) {
 }
 require 'db.php';
 
+// Add Indian currency formatting function (Same as sales.php)
 function formatIndianCurrency($number) {
     $number = number_format($number, 2, '.', '');
     $parts = explode('.', $number);
@@ -23,6 +24,7 @@ function formatIndianCurrency($number) {
     
     return '₹' . $result . '.' . $decimalPart;
 }
+
 $admin_id = $_SESSION['admin_id'];
 ?>
 <!DOCTYPE html>
@@ -707,11 +709,11 @@ $admin_id = $_SESSION['admin_id'];
                 <span class="card-title">Today's Purchases (Value)</span>
                 <i data-feather="dollar-sign" class="card-icon"></i>
             </div>
-            <div class="card-value">₹<?= number_format($stats['total_spent_today'], 2) ?></div>
+            <div class="card-value"><?= formatIndianCurrency($stats['total_spent_today']) ?></div>
             <div class="card-comparison">
                 <span class="positive">
                     <i data-feather="check" style="width:16px; height:16px;"></i>
-                    <?= number_format($stats['orders_today']) ?> Orders
+                    <?= formatIndianCurrency($stats['orders_today']) ?> Orders
                 </span>
                 <span class="neutral" style="margin-left: 4px;">recorded today</span>
             </div>
@@ -758,11 +760,11 @@ $admin_id = $_SESSION['admin_id'];
                         $height_percent = max(0, $height_percent); 
                         // MODIFIED: $bar_class removed
                         $date_label = $data['label'];
-                        $currency_value = number_format($data['total'], 2);
+                        $currency_value = formatIndianCurrency($data['total']);
                     ?>
                     <div class="chart-bar" 
                          style="height: <?= $height_percent ?>%;" 
-                         title="<?= $date_label ?>: ₹<?= $currency_value ?>">
+                         title="<?= $date_label ?>: <?= $currency_value ?>">
                     </div>
                 <?php endforeach; ?>
             <?php endif; ?>
@@ -870,7 +872,7 @@ $admin_id = $_SESSION['admin_id'];
                 <td><?= date('M d, Y', strtotime($row['purchase_date'])) ?></td>
                 <td class="supplier-name"><?= htmlspecialchars($row['supplier_name'] ?? 'N/A') ?></td>
                 <td><span class="badge-clean badge-gray"><?= $row['item_count'] ?> Item<?= $row['item_count'] > 1 ? 's' : '' ?></span></td>
-                <td><strong>₹<?= number_format($row['total_amount'], 2) ?></strong></td>
+                <td><strong><?= formatIndianCurrency($row['total_amount']) ?></strong></td>
                 <td>
                   <span class="status status-completed">
                     <span class="status-dot"></span>Completed
@@ -906,13 +908,13 @@ $admin_id = $_SESSION['admin_id'];
                             <?php endif; ?>
                           </td>
                           <td><strong><?= $item['quantity'] ?></strong></td>
-                          <td>₹<?= number_format($item['unit_price'], 2) ?></td>
-                          <td><strong>₹<?= number_format($item['subtotal'], 2) ?></strong></td>
+                          <td><?= formatIndianCurrency($item['unit_price']) ?></td>
+                          <td><strong><?= formatIndianCurrency($item['subtotal']) ?></strong></td>
                         </tr>
                         <?php endforeach; ?>
                         <tr class="table-light">
                           <td colspan="3" class="text-end"><strong>Total:</strong></td>
-                          <td><strong>₹<?= number_format($row['total_amount'], 2) ?></strong></td>
+                          <td><strong><?= formatIndianCurrency($row['total_amount']) ?></strong></td>
                         </tr>
                       </tbody>
                     </table>

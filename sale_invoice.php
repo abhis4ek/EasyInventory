@@ -5,6 +5,64 @@ if (!isset($_SESSION['admin_id'])) {
     exit();
 }
 require 'db.php';
+
+// Indian currency formatting function
+function formatIndianCurrency($number) {
+    $number = number_format($number, 2, '.', '');
+    $parts = explode('.', $number);
+    $integerPart = $parts[0];
+    $decimalPart = $parts[1];
+    
+    $lastThree = substr($integerPart, -3);
+    $otherNumbers = substr($integerPart, 0, -3);
+    
+    if ($otherNumbers != '') {
+        $lastThree = ',' . $lastThree;
+    }
+    
+    $result = preg_replace('/\B(?=(\d{2})+(?!\d))/', ',', $otherNumbers) . $lastThree;
+    
+    return '₹' . $result . '.' . $decimalPart;
+}
+
+
+function convertNumberToWords($number) {
+    // 1. Convert to float and take the integer part (Rupees) only.
+    $rupees = (int) $number;
+    // The $paisa calculation and check are removed.
+
+    $words = array(
+        0 => '', 1 => 'One', 2 => 'Two', 3 => 'Three', 4 => 'Four', 5 => 'Five',
+        6 => 'Six', 7 => 'Seven', 8 => 'Eight', 9 => 'Nine', 10 => 'Ten',
+        11 => 'Eleven', 12 => 'Twelve', 13 => 'Thirteen', 14 => 'Fourteen', 15 => 'Fifteen',
+        16 => 'Sixteen', 17 => 'Seventeen', 18 => 'Eighteen', 19 => 'Nineteen', 20 => 'Twenty',
+        30 => 'Thirty', 40 => 'Forty', 50 => 'Fifty', 60 => 'Sixty', 70 => 'Seventy',
+        80 => 'Eighty', 90 => 'Ninety'
+    );
+    
+    // Define the recursive conversion logic
+    $convert_rupees = function($num) use ($words, &$convert_rupees) {
+        if ($num == 0) return '';
+        if ($num < 21) return $words[$num];
+        if ($num < 100) return $words[10 * floor($num / 10)] . ' ' . $words[$num % 10];
+        if ($num < 1000) return $words[floor($num / 100)] . ' Hundred ' . $convert_rupees($num % 100);
+        if ($num < 100000) return $convert_rupees(floor($num / 1000)) . ' Thousand ' . $convert_rupees($num % 1000);
+        if ($num < 10000000) return $convert_rupees(floor($num / 100000)) . ' Lakh ' . $convert_rupees($num % 100000);
+        return $convert_rupees(floor($num / 10000000)) . ' Crore ' . $convert_rupees($num % 10000000);
+    };
+
+    $result = trim($convert_rupees($rupees));
+    $output = '';
+
+    if (!empty($result)) {
+        $output .= $result . ' Rupees';
+    } else {
+        $output .= 'Zero Rupees';
+    }
+
+    return trim($output);
+}
+
 $admin_id = $_SESSION['admin_id'];
 
 $id = (int)($_GET['id'] ?? 0);
@@ -19,8 +77,8 @@ $admin_stmt->close();
 // Get sale details
 $stmt = $conn->prepare("
   SELECT s.id, s.sale_date, s.total_amount, 
-         COALESCE(s.created_at, CONCAT(s.sale_date, ' 00:00:00')) as created_at,
-         c.name as customer_name, c.street_address, c.city, c.pin_code, c.state, c.phone, c.email
+        COALESCE(s.created_at, CONCAT(s.sale_date, ' 00:00:00')) as created_at,
+        c.name as customer_name, c.street_address, c.city, c.pin_code, c.state, c.phone, c.email
   FROM sales s 
   LEFT JOIN customers c ON s.customer_id = c.id 
   WHERE s.id = ? AND s.admin_id = ?");
@@ -37,7 +95,7 @@ if (!$sale) {
 // Get sale items with GST info
 $items_stmt = $conn->prepare("
   SELECT si.*, pr.name as product_name, pr.has_mrp, pr.mrp,
-         c.name as category_name, c.gst_rate
+        c.name as category_name, c.gst_rate
   FROM sale_items si
   JOIN products pr ON si.product_id = pr.id
   LEFT JOIN categories c ON pr.category_id = c.id
@@ -49,7 +107,7 @@ $items = $items_stmt->get_result();
 $items_stmt->close();
 
 // Calculate totals with GST
-$subtotal = 0;
+$subtotal = 0; // Total Taxable Value
 $total_gst = 0;
 $cgst_total = 0;
 $sgst_total = 0;
@@ -57,20 +115,30 @@ $items_array = [];
 while($item = $items->fetch_assoc()) {
     $item_subtotal = $item['subtotal'];
     $gst_rate = $item['gst_rate'] ?? 0;
+    
+    // Calculate GST amount embedded in the subtotal (Tax-Inclusive Price)
+    // Formula: GST = (Total * GST_Rate) / (100 + GST_Rate)
     $gst_amount = ($item_subtotal * $gst_rate) / (100 + $gst_rate);
     
-    $item['gst_amount'] = $gst_amount;
-    $item['amount_before_gst'] = $item_subtotal - $gst_amount;
-    $item['cgst'] = $gst_amount / 2;
-    $item['sgst'] = $gst_amount / 2;
+    $item['gst_amount'] = round($gst_amount, 2);
+    $item['amount_before_gst'] = round($item_subtotal - $item['gst_amount'], 2);
+    $item['cgst'] = round($item['gst_amount'] / 2, 2);
+    $item['sgst'] = round($item['gst_amount'] / 2, 2);
     
     $subtotal += $item['amount_before_gst'];
-    $total_gst += $gst_amount;
+    $total_gst += $item['gst_amount'];
     $cgst_total += $item['cgst'];
     $sgst_total += $item['sgst'];
     $items_array[] = $item;
 }
-$grand_total = $subtotal + $total_gst;
+
+// Final totals based on line item calculations (no round-off)
+$subtotal = round($subtotal, 2);
+$cgst_total = round($cgst_total, 2);
+$sgst_total = round($sgst_total, 2);
+
+// THIS IS THE NEW GRAND TOTAL (sum of Taxable Value + CGST + SGST)
+$grand_total = $subtotal + $cgst_total + $sgst_total; 
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -389,7 +457,6 @@ $grand_total = $subtotal + $total_gst;
     </div>
 
     <div class="invoice-container">
-        <!-- Header -->
         <div class="invoice-header">
             <div class="header-top">
                 <h1><?= htmlspecialchars($admin_data['shop_name'] ?? 'MY BUSINESS') ?></h1>
@@ -422,7 +489,6 @@ $grand_total = $subtotal + $total_gst;
             </div>
         </div>
 
-        <!-- Addresses -->
         <div class="address-section">
             <div class="address-box">
                 <h3>Billing Address</h3>
@@ -445,10 +511,12 @@ $grand_total = $subtotal + $total_gst;
                 <p><?= htmlspecialchars($sale['city']) ?>, <?= htmlspecialchars($sale['state']) ?></p>
                 <p>PIN: <?= htmlspecialchars($sale['pin_code']) ?></p>
                 <?php endif; ?>
+                <?php if($sale['phone']): ?>
+                <p>Phone: <?= htmlspecialchars($sale['phone']) ?></p>
+                <?php endif; ?>
             </div>
         </div>
 
-        <!-- Items Table -->
         <table class="items-table">
             <thead>
                 <tr>
@@ -473,19 +541,18 @@ $grand_total = $subtotal + $total_gst;
                     <td class="text-center"><?= $row_num++ ?></td>
                     <td><?= htmlspecialchars($item['product_name']) ?></td>
                     <td class="text-center"><?= $item['quantity'] ?></td>
-                    <td class="text-right">₹<?= number_format($item['unit_price'], 2) ?></td>
+                    <td class="text-right"><?= formatIndianCurrency($item['unit_price']) ?></td>
                     <td class="text-center">0</td>
-                    <td class="text-right">₹<?= number_format($item['amount_before_gst'], 2) ?></td>
+                    <td class="text-right"><?= formatIndianCurrency($item['amount_before_gst']) ?></td>
                     <td class="text-center"><?= number_format($item['gst_rate'], 1) ?>%</td>
-                    <td class="text-right">₹<?= number_format($item['cgst'], 2) ?></td>
-                    <td class="text-right">₹<?= number_format($item['sgst'], 2) ?></td>
-                    <td class="text-right"><strong>₹<?= number_format($item['subtotal'], 2) ?></strong></td>
+                    <td class="text-right"><?= formatIndianCurrency($item['cgst']) ?></td>
+                    <td class="text-right"><?= formatIndianCurrency($item['sgst']) ?></td>
+                    <td class="text-right"><strong><?= formatIndianCurrency($item['subtotal']) ?></strong></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
         </table>
 
-        <!-- Totals -->
         <div class="totals-section">
             <div class="totals-grid">
                 <div class="totals-left">
@@ -494,34 +561,29 @@ $grand_total = $subtotal + $total_gst;
                 <div class="totals-right">
                     <div class="total-row">
                         <div class="label">Taxable Value:</div>
-                        <div class="value">₹<?= number_format($subtotal, 2) ?></div>
+                        <div class="value"><?= formatIndianCurrency($subtotal) ?></div>
                     </div>
                     <div class="total-row">
                         <div class="label">CGST:</div>
-                        <div class="value">₹<?= number_format($cgst_total, 2) ?></div>
+                        <div class="value"><?= formatIndianCurrency($cgst_total) ?></div>
                     </div>
                     <div class="total-row">
                         <div class="label">SGST:</div>
-                        <div class="value">₹<?= number_format($sgst_total, 2) ?></div>
-                    </div>
-                    <div class="total-row">
-                        <div class="label">Round Off:</div>
-                        <div class="value">₹0.00</div>
+                        <div class="value"><?= formatIndianCurrency($sgst_total) ?></div>
                     </div>
                     <div class="total-row grand-total">
                         <div class="label">TOTAL PAYABLE:</div>
-                        <div class="value">₹<?= number_format($sale['total_amount'], 2) ?></div>
+                        <div class="value"><?= formatIndianCurrency($grand_total) ?></div>
                     </div>
                 </div>
             </div>
             
             <div class="amount-in-words">
                 <strong>Amount in Words:</strong>
-                <span style="text-transform: capitalize;"><?= convertNumberToWords($sale['total_amount']) ?> Rupees Only</span>
+                <span style="text-transform: capitalize;"><?= convertNumberToWords($grand_total) ?> Only</span>
             </div>
         </div>
 
-        <!-- Terms & Conditions -->
         <div class="terms-section">
             <h4>Terms and Conditions:</h4>
             <ol>
@@ -531,7 +593,6 @@ $grand_total = $subtotal + $total_gst;
             </ol>
         </div>
 
-        <!-- Signature -->
         <div class="signature-section">
             <div class="signature-box">
                 <p>Customer Signature</p>
@@ -545,33 +606,3 @@ $grand_total = $subtotal + $total_gst;
     </div>
 </body>
 </html>
-
-<?php
-function convertNumberToWords($number) {
-    $number = (int)$number;
-    $words = array(
-        0 => '', 1 => 'One', 2 => 'Two', 3 => 'Three', 4 => 'Four', 5 => 'Five',
-        6 => 'Six', 7 => 'Seven', 8 => 'Eight', 9 => 'Nine', 10 => 'Ten',
-        11 => 'Eleven', 12 => 'Twelve', 13 => 'Thirteen', 14 => 'Fourteen', 15 => 'Fifteen',
-        16 => 'Sixteen', 17 => 'Seventeen', 18 => 'Eighteen', 19 => 'Nineteen', 20 => 'Twenty',
-        30 => 'Thirty', 40 => 'Forty', 50 => 'Fifty', 60 => 'Sixty', 70 => 'Seventy',
-        80 => 'Eighty', 90 => 'Ninety'
-    );
-    
-    if ($number == 0) return 'Zero';
-    
-    if ($number < 21) {
-        return $words[$number];
-    } elseif ($number < 100) {
-        return $words[10 * floor($number / 10)] . ' ' . $words[$number % 10];
-    } elseif ($number < 1000) {
-        return $words[floor($number / 100)] . ' Hundred ' . convertNumberToWords($number % 100);
-    } elseif ($number < 100000) {
-        return convertNumberToWords(floor($number / 1000)) . ' Thousand ' . convertNumberToWords($number % 1000);
-    } elseif ($number < 10000000) {
-        return convertNumberToWords(floor($number / 100000)) . ' Lakh ' . convertNumberToWords($number % 100000);
-    } else {
-        return convertNumberToWords(floor($number / 10000000)) . ' Crore ' . convertNumberToWords($number % 10000000);
-    }
-}
-?>

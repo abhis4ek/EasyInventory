@@ -5,26 +5,7 @@ if (!isset($_SESSION['admin_id'])) {
     exit();
 }
 require 'db.php';
-
-// Indian Number Formatting Function
-function formatIndianNumber($num) {
-    $num = number_format($num, 2, '.', '');
-    $parts = explode('.', $num);
-    $integer = $parts[0];
-    $decimal = isset($parts[1]) ? $parts[1] : '00';
-    
-    // Indian system: last 3 digits, then groups of 2
-    $lastThree = substr($integer, -3);
-    $otherNumbers = substr($integer, 0, -3);
-    
-    if ($otherNumbers != '') {
-        $lastThree = ',' . $lastThree;
-    }
-    
-    $result = preg_replace('/\B(?=(\d{2})+(?!\d))/', ',', $otherNumbers) . $lastThree;
-    
-    return $result . '.' . $decimal;
-}
+require 'helpers.php';
 
 $admin_id = $_SESSION['admin_id'];
 
@@ -731,26 +712,31 @@ $stmt->close();
     </div>
 
     <script>
-        // Indian Numbering System Formatter
-        function formatIndianCurrency(num) {
-            const n = parseFloat(num);
-            if (isNaN(n)) return '₹0';
+        // *** FIX: Added missing JavaScript function for Indian currency formatting ***
+        function formatIndianCurrency(value) {
+            // Check if the value is zero or non-numeric
+            if (value === 0 || value === null || isNaN(value)) {
+                return '₹0.00';
+            }
             
-            const numStr = Math.abs(n).toFixed(2);
-            const [integer, decimal] = numStr.split('.');
-            
-            // Indian system: last 3 digits, then groups of 2
-            let lastThree = integer.substring(integer.length - 3);
-            let otherNumbers = integer.substring(0, integer.length - 3);
+            // Convert to string and handle decimals
+            let parts = parseFloat(value).toFixed(2).split('.');
+            let integerPart = parts[0];
+            let decimalPart = parts[1];
+
+            // Format integer part for Indian currency (Lakhs and Crores)
+            let lastThree = integerPart.substring(integerPart.length - 3);
+            let otherNumbers = integerPart.substring(0, integerPart.length - 3);
             
             if (otherNumbers !== '') {
                 lastThree = ',' + lastThree;
             }
             
-            let result = otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + lastThree;
-            
-            return (n < 0 ? '-₹' : '₹') + result + '.' + decimal;
+            let formattedInteger = otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + lastThree;
+
+            return '₹' + formattedInteger + '.' + decimalPart;
         }
+        // **************************************************************************
 
         Chart.defaults.font.family = "'Poppins', sans-serif";
 
@@ -819,7 +805,8 @@ $stmt->close();
                     y: {
                         beginAtZero: true,
                         ticks: {
-                            callback: function(value) { return formatIndianCurrency(value); }
+                            // This now correctly calls the JS function defined above
+                            callback: function(value) { return formatIndianCurrency(value); } 
                         }
                     }
                 }
@@ -845,7 +832,21 @@ $stmt->close();
             options: {
                 responsive: true,
                 plugins: {
-                    legend: { position: 'bottom', labels: { font: { size: 14 }, padding: 20 } }
+                    legend: { position: 'bottom', labels: { font: { size: 14 }, padding: 20 } },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed !== null) {
+                                    label += formatIndianCurrency(context.parsed);
+                                }
+                                return label;
+                            }
+                        }
+                    }
                 },
                 cutout: '70%'
             }
